@@ -116,8 +116,8 @@ class NC2:
         self.plot_type_label = tb.Label(control_frame_right, text="Select Plot Type:", font=("Helvetica", 12))
         self.plot_type_label.pack(pady=5)
         
-        self.plot_type_dropdown = tb.Combobox(control_frame_right, state="readonly", bootstyle='secondary')
-        self.plot_type_dropdown['values'] = ['pcolormesh', 'contour', 'contourf', 'imshow', 'quiver']
+        self.plot_type_dropdown = tb.Combobox(control_frame_right, state="readonly", bootstyle='success')
+        self.plot_type_dropdown['values'] = ['pcolormesh', 'contour', 'contourf', 'imshow', 'quiver', 'streamplot']
         self.plot_type_dropdown.set('pcolormesh')
         self.plot_type_dropdown.pack(pady=5)
         
@@ -130,12 +130,15 @@ class NC2:
         self.scale_var = tk.StringVar()
         self.scale_entry = tb.Entry(control_frame_right, textvariable=self.scale_var, bootstyle='secondary')
         
+        self.density_var = tk.StringVar()
+        self.density_entry = tb.Entry(control_frame_right, textvariable=self.density_var, bootstyle='secondary')
+        
         self.plot_type_dropdown.bind("<<ComboboxSelected>>", self.on_plot_select)
         
         self.colormap_dropdown_label = tb.Label(control_frame_right, text="Select Colormap:", font=("Helvetica", 12))
         self.colormap_dropdown_label.pack(pady=5)
         
-        self.colormap_dropdown = tb.Combobox(control_frame_right, state="readonly", bootstyle='secondary')
+        self.colormap_dropdown = tb.Combobox(control_frame_right, state="readonly", bootstyle='success')
         self.colormap_dropdown.pack(pady=5)
         
         self.load_colormaps()
@@ -470,6 +473,11 @@ class NC2:
         else:
             self.steps_entry.pack_forget()
             self.scale_entry.pack_forget()
+        if plot == 'streamplot':
+            self.density_var.set('density') 
+            self.density_entry.pack(after=self.plot_type_dropdown, pady=5)
+        else:
+            self.density_entry.pack_forget()
        
     def update_hover_info(self, event):
         if event.inaxes:
@@ -558,6 +566,11 @@ class NC2:
             scale = None
             
         try:
+            density = float(self.density_entry.get())
+        except ValueError:
+            density = 1
+            
+        try:
             shrink = float(self.cbar_shrink_entry.get())
         except ValueError:
             shrink = 0.75
@@ -643,6 +656,14 @@ class NC2:
                             
                             pcm = ax.pcolormesh(lon, lat, data, cmap=selected_colormap, vmin=vmin, vmax=vmax, transform=transform)
                             quiver = ax.quiver(lon_quiver, lat_quiver, u_quiver, v_quiver, scale=scale, transform=transform)
+                        elif plot_type == 'streamplot':
+                            u = self.dataset.variables['water_u'][t,0,:,:]
+                            v = self.dataset.variables['water_v'][t,0,:,:]
+                            u_masked = np.ma.masked_invalid(u)
+                            v_masked = np.ma.masked_invalid(v)
+                            
+                            pcm = ax.pcolormesh(lon, lat, data, cmap=selected_colormap, vmin=vmin, vmax=vmax, transform=transform)
+                            stream = ax.streamplot(lon, lat, u_masked, v_masked, density=density, transform=transform)
                         
                         cbar = plt.colorbar(pcm, ax=ax, location=colorbar_orientation, shrink=shrink)
                         
@@ -756,7 +777,19 @@ class NC2:
                             
                             pcm = ax.pcolormesh(lon, lat, data, cmap=selected_colormap, vmin=vmin, vmax=vmax, transform=transform)
                             quiver = ax.quiver(lon_quiver, lat_quiver, u_quiver, v_quiver, scale=scale, transform=transform)
-                        
+                        elif plot_type == 'streamplot':
+                            u = self.dataset.variables['water_u'][t,selected_depth,:,:]
+                            v = self.dataset.variables['water_v'][t,selected_depth,:,:]
+                            u_fill_value = self.dataset.variables['water_u']._FillValue
+                            v_fill_value = self.dataset.variables['water_v']._FillValue
+
+# Replace fill values with NaN for easier masking
+                            u_masked = np.ma.masked_equal(u, u_fill_value)
+                            v_masked = np.ma.masked_equal(v, v_fill_value)
+                            
+                            pcm = ax.pcolormesh(lon, lat, data, cmap=selected_colormap, vmin=vmin, vmax=vmax, transform=transform)
+                            stream = ax.streamplot(lon, lat, u_masked, v_masked, density=density, transform=transform)
+                            
                         cbar = plt.colorbar(pcm, ax=ax, location=colorbar_orientation, shrink=shrink)
                         
                         ax.coastlines(linewidth=.5)

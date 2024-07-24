@@ -35,7 +35,6 @@ class NC2:
         
         if self.file_path:
             self.load_netcdf_file()
-
             
 # ********** Widgets ********** #
 
@@ -663,7 +662,7 @@ class NC2:
                             v_masked = np.ma.masked_invalid(v)
                             
                             pcm = ax.pcolormesh(lon, lat, data, cmap=selected_colormap, vmin=vmin, vmax=vmax, transform=transform)
-                            stream = ax.streamplot(lon, lat, u_masked, v_masked, density=density, transform=transform)
+                            stream = ax.streamplot(lon, lat, u_masked, v_masked, density=density,color='slategray',transform=transform)
                         
                         cbar = plt.colorbar(pcm, ax=ax, location=colorbar_orientation, shrink=shrink)
                         
@@ -788,7 +787,7 @@ class NC2:
                             v_masked = np.ma.masked_equal(v, v_fill_value)
                             
                             pcm = ax.pcolormesh(lon, lat, data, cmap=selected_colormap, vmin=vmin, vmax=vmax, transform=transform)
-                            stream = ax.streamplot(lon, lat, u_masked, v_masked, density=density, transform=transform)
+                            stream = ax.streamplot(lon, lat, u_masked, v_masked, density=density,color='slategray', transform=transform)
                             
                         cbar = plt.colorbar(pcm, ax=ax, location=colorbar_orientation, shrink=shrink)
                         

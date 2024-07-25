@@ -83,21 +83,32 @@ class NC2:
         self.hover_label.pack(pady=10)
         
         self.gif_checkbox_var = tk.BooleanVar()
-        self.gif_checkbox = tb.Checkbutton(control_frame_left, text="Save as GIF", variable=self.gif_checkbox_var, bootstyle='danger, round-toggle', command=self.toggle_gif_checkbox)
+        self.gif_checkbox = tb.Checkbutton(control_frame_left, text="Make GIF", variable=self.gif_checkbox_var, bootstyle='danger, round-toggle', command=self.toggle_gif_checkbox)
         self.gif_checkbox.pack(pady=5)
+        
+        gif_fpstime = tb.Frame(control_frame_left)
+        gif_fpstime.pack(pady=3)
         
         self.gif_FPS_entry_var = tk.StringVar()
         self.gif_FPS_entry_var.set("FPS")
-        self.gif_FPS_entry = tb.Entry(control_frame_left, textvariable=self.gif_FPS_entry_var, bootstyle='warning')
-        self.gif_FPS_entry.pack(pady=5)
+        self.gif_FPS_entry = tb.Entry(gif_fpstime, width=6, textvariable=self.gif_FPS_entry_var, bootstyle='warning')
+        self.gif_FPS_entry.pack(side=tk.LEFT, padx=6, pady=5)
+        
+        self.time_steps_entry_var = tk.StringVar()
+        self.time_steps_entry_var.set('Range')
+        self.time_steps_entry = tb.Entry(gif_fpstime, width=6, textvariable=self.time_steps_entry_var, bootstyle='warning')
+        self.time_steps_entry.pack(side=tk.LEFT, padx=6, pady=5)
+        
+        gif_deloop = tb.Frame(control_frame_left)
+        gif_deloop.pack(pady=1)
         
         self.delete_images_var = tk.BooleanVar()
-        self.delete_images_checkbox = tb.Checkbutton(control_frame_left, text="Delete Images", variable=self.delete_images_var, bootstyle='danger, round-toggle')
-        self.delete_images_checkbox.pack(pady=5)
+        self.delete_images_checkbox = tb.Checkbutton(gif_deloop, text="Delete Images", variable=self.delete_images_var, bootstyle='danger, round-toggle')
+        self.delete_images_checkbox.pack(side=tk.LEFT, padx=3, pady=5)
         
         self.gif_loop_var = tk.BooleanVar()
-        self.gif_loop = tb.Checkbutton(control_frame_left, text="Loop", variable=self.gif_loop_var, bootstyle='danger, round-toggle')
-        self.gif_loop.pack(pady=5)
+        self.gif_loop = tb.Checkbutton(gif_deloop, text="Loop", variable=self.gif_loop_var, bootstyle='danger, round-toggle')
+        self.gif_loop.pack(side=tk.LEFT, padx=2, pady=5)
      
         self.gif_directory = tb.Button(control_frame_left, text='Save GIF', command=self.select_gif_directory, bootstyle='warning')
         self.gif_directory.pack(pady=5)
@@ -131,6 +142,9 @@ class NC2:
         
         self.density_var = tk.StringVar()
         self.density_entry = tb.Entry(control_frame_right, textvariable=self.density_var, bootstyle='secondary')
+        
+        self.linewidth_var = tk.StringVar()
+        self.linewidth_entry = tb.Entry(control_frame_right, textvariable=self.linewidth_var, bootstyle='secondary')
         
         self.plot_type_dropdown.bind("<<ComboboxSelected>>", self.on_plot_select)
         
@@ -460,21 +474,23 @@ class NC2:
     def on_plot_select(self, event):
         plot = self.plot_type_dropdown.get()
         if plot in ['contour', 'contourf']:
-            self.levels_entry_var.set("levels")
+            self.levels_entry_var.set("Levels")
             self.levels_entry.pack(after=self.plot_type_dropdown, pady=5) 
         else:
             self.levels_entry.pack_forget()
         if plot == 'quiver':
-            self.steps_var.set('steps')
+            self.steps_var.set('Steps')
             self.steps_entry.pack(after=self.plot_type_dropdown, pady=5)
-            self.scale_var.set('scale')
+            self.scale_var.set('Scale')
             self.scale_entry.pack(after=self.plot_type_dropdown, pady=5)
         else:
             self.steps_entry.pack_forget()
             self.scale_entry.pack_forget()
         if plot == 'streamplot':
-            self.density_var.set('density') 
+            self.density_var.set('Density') 
             self.density_entry.pack(after=self.plot_type_dropdown, pady=5)
+            self.linewidth_var.set('Linewidth')
+            self.linewidth_entry.pack(after=self.plot_type_dropdown, pady=5)
         else:
             self.density_entry.pack_forget()
        
@@ -570,9 +586,19 @@ class NC2:
             density = 1
             
         try:
+            linewidth = float(self.linewidth_entry.get())
+        except ValueError:
+            linewidth=None
+            
+        try:
             shrink = float(self.cbar_shrink_entry.get())
         except ValueError:
-            shrink = 0.75
+            shrink = 1
+            
+        try:
+            Range = int(self.time_steps_entry.get())
+        except ValueError:
+            Range = None
             
         if self.extent_entry.get():
             try:
@@ -587,6 +613,9 @@ class NC2:
 
         if self.gif_checkbox_var.get():
             time_steps = range(self.time_steps)
+            if self.time_steps_entry.get():
+                if Range != None:
+                    time_steps = range(Range)
         else:
             current_index = [self.time_dropdown.current()]
             
@@ -775,19 +804,30 @@ class NC2:
                             v_quiver = v[::step, ::step]
                             
                             pcm = ax.pcolormesh(lon, lat, data, cmap=selected_colormap, vmin=vmin, vmax=vmax, transform=transform)
-                            quiver = ax.quiver(lon_quiver, lat_quiver, u_quiver, v_quiver, scale=scale, transform=transform)
+                            quiver = ax.quiver(lon_quiver, lat_quiver, u_quiver, v_quiver, units='width', scale=scale, transform=transform)
                         elif plot_type == 'streamplot':
-                            u = self.dataset.variables['water_u'][t,selected_depth,:,:]
-                            v = self.dataset.variables['water_v'][t,selected_depth,:,:]
+                            u_raw = self.dataset.variables['water_u'][t, selected_depth, :, :]
+                            v_raw = self.dataset.variables['water_v'][t, selected_depth, :, :]
                             u_fill_value = self.dataset.variables['water_u']._FillValue
                             v_fill_value = self.dataset.variables['water_v']._FillValue
+                            scale_factor = self.dataset.variables['water_u'].scale_factor
+                            
+                            u = u_raw * scale_factor
+                            v = v_raw * scale_factor
 
-# Replace fill values with NaN for easier masking
-                            u_masked = np.ma.masked_equal(u, u_fill_value)
-                            v_masked = np.ma.masked_equal(v, v_fill_value)
+                            u = np.ma.masked_where(u_raw == u_fill_value, u)
+                            v = np.ma.masked_where(v_raw == v_fill_value, v)
+
+                            u = np.ma.masked_invalid(u)
+                            v = np.ma.masked_invalid(v)
+                            
+                            u = u.filled(0)
+                            v = v.filled(0)
+                            
+                            speed = np.sqrt(u**2 + v**2)
                             
                             pcm = ax.pcolormesh(lon, lat, data, cmap=selected_colormap, vmin=vmin, vmax=vmax, transform=transform)
-                            stream = ax.streamplot(lon, lat, u_masked, v_masked, density=density,color='slategray', transform=transform)
+                            stream = ax.streamplot(lon, lat, u, v, cmap=selected_colormap, color=speed, density=density,linewidth=linewidth, transform=transform)
                             
                         cbar = plt.colorbar(pcm, ax=ax, location=colorbar_orientation, shrink=shrink)
                         
@@ -880,10 +920,11 @@ class NC2:
                     gifloop=0
                 else:
                     gifloop=1    
-                    
-                gif_duration = 6
-                if self.gif_FPS_entry.get():
-                    gif_duration = float(self.gif_FPS_entry.get())
+                
+                try:
+                    gif_duration = int(self.gif_FPS_entry.get())
+                except ValueError:
+                    gif_duration = 6
             
                 with imageio.get_writer(gif_path, mode='I', fps=gif_duration, loop=gifloop) as writer:
                     for t in time_steps:

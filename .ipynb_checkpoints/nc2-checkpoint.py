@@ -686,28 +686,13 @@ class NC2:
                             pcm = ax.pcolormesh(lon, lat, data, cmap=selected_colormap, vmin=vmin, vmax=vmax, transform=transform)
                             quiver = ax.quiver(lon_quiver, lat_quiver, u_quiver, v_quiver, scale=scale, transform=transform)
                         elif plot_type == 'streamplot':
-                            u_raw = self.dataset.variables['water_u'][t, selected_depth, :, :]
-                            v_raw = self.dataset.variables['water_v'][t, selected_depth, :, :]
-                            u_fill_value = self.dataset.variables['water_u']._FillValue
-                            v_fill_value = self.dataset.variables['water_v']._FillValue
-                            scale_factor = self.dataset.variables['water_u'].scale_factor
-                            
-                            u = u_raw * scale_factor
-                            v = v_raw * scale_factor
-
-                            u = np.ma.masked_where(u_raw == u_fill_value, u)
-                            v = np.ma.masked_where(v_raw == v_fill_value, v)
-
-                            u = np.ma.masked_invalid(u)
-                            v = np.ma.masked_invalid(v)
-                            
-                            u = u.filled(0)
-                            v = v.filled(0)
-                            
-                            speed = np.sqrt(u**2 + v**2)
+                            u = self.dataset.variables['water_u'][t,0,:,:]
+                            v = self.dataset.variables['water_v'][t,0,:,:]
+                            u_masked = np.ma.masked_invalid(u)
+                            v_masked = np.ma.masked_invalid(v)
                             
                             pcm = ax.pcolormesh(lon, lat, data, cmap=selected_colormap, vmin=vmin, vmax=vmax, transform=transform)
-                            stream = ax.streamplot(lon, lat, u, v, cmap=selected_colormap, color=speed, density=density,linewidth=linewidth, transform=transform)
+                            stream = ax.streamplot(lon, lat, u_masked, v_masked, density=density,color='slategray',transform=transform)
                         
                         cbar = plt.colorbar(pcm, ax=ax, location=colorbar_orientation, shrink=shrink)
                         

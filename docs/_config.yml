@@ -22,8 +22,8 @@ title: NC² - NetCDF Viewer
 email: rhettadambusiness@gmail.com
 description: >- # this means to ignore newlines until "baseurl:"
   NC^2 is a versatile NetCDF viewer for quickly plotting data, leveraging common scientific Python tools such as Matplotlib and Cartopy to produce publication-quality plots.
-baseurl: "" 
-url: "https://rhettadam.github.io" 
+#baseurl: "" 
+#url: "https://rhettadam.github.io" 
 twitter_username: 
 github_username:  rhettadam
 

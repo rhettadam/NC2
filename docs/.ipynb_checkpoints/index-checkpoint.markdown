@@ -4,3 +4,5 @@
 
 layout: home
 ---
+# Welcome to NC^2 
+NC^2 is a versatile NetCDF viewer for quickly plotting data, leveraging common scientific Python tools such as Matplotlib and Cartopy to produce publication-quality plots.

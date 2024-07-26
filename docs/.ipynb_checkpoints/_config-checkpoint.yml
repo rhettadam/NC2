@@ -29,6 +29,7 @@ github_username:  rhettadam
 
 # Build settings
 theme: minima
+logo: /assets/Logo3.png
 plugins:
   - jekyll-feed
 

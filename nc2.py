@@ -1,13 +1,13 @@
-import tkinter as tk
-import ttkbootstrap as tb
 from tkinter import *
 from tkinter import filedialog, ttk
+import tkinter as tk
+import ttkbootstrap as tb
 from ttkbootstrap.constants import *
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
-import cartopy.crs as ccrs
 import cartopy.feature as cfeature
+import cartopy.crs as ccrs
 
 import imageio.v2 as imageio
 from PIL import Image, ImageTk
@@ -17,6 +17,16 @@ import sys
 import os
 import netCDF4 as nc
 import numpy as np
+
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS2
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
+
 
 class NC2:
     def __init__(self, root, file_path=None):
@@ -42,7 +52,7 @@ class NC2:
         control_frame_left = tk.Frame(self.root, padx=10, pady=10)
         control_frame_left.pack(side=tk.LEFT, fill=tk.Y)
         
-        self.logo_image = ImageTk.PhotoImage(file="Logo3.png")
+        self.logo_image = ImageTk.PhotoImage(file=resource_path("Logo3.png"))
         width, height = self.logo_image.width(), self.logo_image.height()
         self.logo = Label(control_frame_left, width=width, height=height, image = self.logo_image)
         self.logo.pack(pady=5)
@@ -373,9 +383,6 @@ class NC2:
             
         except Exception as e:
             print(f"Error loading NetCDF file: {e}")
-            
-        central_longitude = float(self.lon.min() + self.lon.max()) / 2.0
-        central_latitude = float(self.lat.min() + self.lat.max()) / 2.0
             
     def on_variable_selected(self, event):
         selected_variable = self.variable_dropdown.get()

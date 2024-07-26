@@ -1,8 +1,10 @@
 # Welcome To NC²
+
 What are NetCDF Files?
 
 NetCDF (Network Common Data Form) is a set of software libraries and self-describing, machine-independent data formats that support the creation, access, and sharing of array-oriented scientific data. NetCDF files are widely used in climate science, meteorology, oceanography, and other fields to store and distribute large datasets. These files are valuable for their ability to store multi-dimensional data (such as temperature, humidity, and wind speed) efficiently, making them essential for researchers and scientists dealing with complex environmental data.
-The Importance of Tools Like NCview and Panoply
+
+NCview and Panoply
 
 Programs such as NCview and Panoply have become indispensable tools for scientists working with NetCDF files.
 
@@ -10,8 +12,12 @@ Programs such as NCview and Panoply have become indispensable tools for scientis
 
     Panoply: Panoply, developed by NASA, is another powerful tool that provides more advanced features than NCview. It allows users to visualize georeferenced and other arrays from NetCDF, HDF, and GRIB datasets. Panoply offers a range of plotting options, including latitude-longitude, latitude-vertical, and time-latitude plots, making it a versatile tool for in-depth data analysis.
 
-Both NCview and Panoply are essential for scientists who need to visualize and analyze their data efficiently. However, these tools come with limitations, such as less intuitive user interfaces and a lack of customization options for publication-quality plots.
-Introducing NC²
+Both NCview and Panoply are essential for scientists who need to visualize and analyze their data quickly. However, these tools come with limitations, such as less intuitive user interfaces and a lack of customization options for publication-quality plots.
+
+What is NC²?
+
+![Logo4](https://github.com/user-attachments/assets/377cbe6b-5433-42c3-94a3-8f8b73f4ee7f)
+
 
 NC² is a next-generation NetCDF viewer designed to overcome the limitations of traditional tools like NCview and Panoply. Built with modern scientific Python tools such as CartoPy and Matplotlib, NC² offers a versatile and user-friendly platform for visualizing and analyzing NetCDF data. Here’s what NC² brings to the table:
 
@@ -25,14 +31,20 @@ NC² is a next-generation NetCDF viewer designed to overcome the limitations of 
 
     Easy Customization: NC² offers a variety of customization options, allowing users to tailor their plots to their specific needs. From adjusting color maps and scales to adding annotations and labels, NC² makes it easy to create detailed and informative visualizations.
 
-    Enhanced Features: In addition to basic plotting functionalities, NC² provides advanced features such as time series analysis, depth profiling, and GIF generations. These features enable users to gain deeper insights into their data and conduct more comprehensive analyses.
+    Advanced Features: In addition to basic plotting functionalities, NC² provides advanced features such as time series analysis, depth profiling, and GIF generations. These features enable users to gain deeper insights into their data and conduct more comprehensive analyses.
 
 Explore the features and capabilities of NC², and see how it can enhance your research and data analysis workflows.
+
+![Screenshot from 2024-07-23 22-41-41](https://github.com/user-attachments/assets/6a7d6af4-5c5b-495b-92e0-08599935cb88)
+
+
+
 
 # Contact Me!
 
 rhettadambusiness@gmail.com
 
 Rhett R. Adam 7/25/24
-Vanderbilt Undergrad EES
+
+VU Undergrad EES
 

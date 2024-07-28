@@ -1,10 +1,10 @@
 # Welcome To NC²
 
-What are NetCDF Files?
+## What are NetCDF Files?
 
 NetCDF (Network Common Data Form) is a set of software libraries and self-describing, machine-independent data formats that support the creation, access, and sharing of array-oriented scientific data. NetCDF files are widely used in climate science, meteorology, oceanography, and other fields to store and distribute large datasets. These files are valuable for their ability to store multi-dimensional data (such as temperature, humidity, and wind speed) efficiently, making them essential for researchers and scientists dealing with complex environmental data.
 
-NCview and Panoply
+## NCview and Panoply
 
 Programs such as NCview and Panoply have become indispensable tools for scientists working with NetCDF files.
 
@@ -14,7 +14,7 @@ Programs such as NCview and Panoply have become indispensable tools for scientis
 
 Both NCview and Panoply are essential for scientists who need to visualize and analyze their data quickly. However, these tools come with limitations, such as less intuitive user interfaces and a lack of customization options for publication-quality plots.
 
-What is NC²?
+## What is NC²?
 
 ![Logo4](https://github.com/user-attachments/assets/377cbe6b-5433-42c3-94a3-8f8b73f4ee7f)
 
@@ -37,10 +37,20 @@ Explore the features and capabilities of NC², and see how it can enhance your r
 
 ![Screenshot from 2024-07-23 22-41-41](https://github.com/user-attachments/assets/6a7d6af4-5c5b-495b-92e0-08599935cb88)
 
+## Installation
 
+To install NC², run the following command:
 
+```sh
+pip install nc2
+```
+After installation, you can run NC² from the command line as follows:
 
-# Contact Me!
+```sh
+nc2 path/to/your/file.nc
+```
+
+## Contact Me!
 
 rhettadambusiness@gmail.com
 

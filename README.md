@@ -58,3 +58,9 @@ Rhett R. Adam 7/25/24
 
 VU Undergrad EES
 
+## License
+
+NC² is distributed under the GPL-3.0 License. See the LICENSE file for details.
+
+Copyright (c) 2024 Rhett R. Adam
+

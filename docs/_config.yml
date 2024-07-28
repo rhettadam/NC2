@@ -18,14 +18,25 @@
 # You can create any custom variable you would like, and they will be accessible
 # in the templates via {{ site.myvariable }}.
 
-title: NC² - NetCDF Viewer
+title: ""
+logo: /assets/Logo3.png
 email: rhettadambusiness@gmail.com
 description: >- # this means to ignore newlines until "baseurl:"
-  NC^2 is a versatile NetCDF viewer for quickly plotting data, leveraging common scientific Python tools such as Matplotlib and Cartopy to produce publication-quality plots.
+  NC² is a versatile NetCDF viewer for quickly plotting data, leveraging common scientific Python tools such as Matplotlib and Cartopy to produce publication-quality plots.
 #baseurl: "" 
 #url: "https://rhettadam.github.io" 
 twitter_username: 
 github_username:  rhettadam
+
+nav_links:
+  - title: "Home"
+    url: "/"
+  - title: "About"
+    url: "/about"
+  - title: "Install"
+    url: "/install"
+  - title: "Features"
+    url: "/features"
 
 # Build settings
 remote_theme: pages-themes/minimal@v0.2.0

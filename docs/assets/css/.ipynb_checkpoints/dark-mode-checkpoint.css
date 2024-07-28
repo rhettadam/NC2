@@ -1,0 +1,48 @@
+/* Dark Mode Styles */
+body {
+  background-color: #1a1a1a; /* Darker gray for edges */
+  color: #e0e0e0; /* Light gray text */
+}
+
+.wrapper {
+  background-color: #2a2a2a; /* Lighter dark gray for center page */
+  padding: 20px;
+  border-radius: 8px;
+}
+
+header, footer {
+  background-color: #1a1a1a;
+  padding: 10px 20px;
+  border-radius: 8px;
+}
+
+header h1, footer p {
+  color: #e0e0e0;
+}
+
+nav ul {
+  list-style: none;
+  padding: 0;
+}
+
+nav ul li {
+  display: inline;
+  margin-right: 15px;
+}
+
+nav ul li a {
+  color: #e0e0e0;
+  text-decoration: none;
+}
+
+nav ul li a:hover {
+  text-decoration: underline;
+}
+
+a {
+  color: #4a90e2; /* Link color */
+}
+
+a:hover {
+  color: #7baaf7; /* Link hover color */
+}

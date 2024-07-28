@@ -1,5 +1,7 @@
 # Welcome To NC²
 
+[![PyPI version](https://badge.fury.io/py/nc2.svg)](https://pypi.org/project/nc2/)
+
 ## What are NetCDF Files?
 
 NetCDF (Network Common Data Form) is a set of software libraries and self-describing, machine-independent data formats that support the creation, access, and sharing of array-oriented scientific data. NetCDF files are widely used in climate science, meteorology, oceanography, and other fields to store and distribute large datasets. These files are valuable for their ability to store multi-dimensional data (such as temperature, humidity, and wind speed) efficiently, making them essential for researchers and scientists dealing with complex environmental data.

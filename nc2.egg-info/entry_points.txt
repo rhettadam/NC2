@@ -1,0 +1,2 @@
+[console_scripts]
+nc2 = nc2.nc2:main

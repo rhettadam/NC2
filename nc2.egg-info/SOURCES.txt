@@ -1,0 +1,12 @@
+LICENSE
+README.md
+setup.py
+nc2/Logo3.png
+nc2/__init__.py
+nc2/nc2.py
+nc2.egg-info/PKG-INFO
+nc2.egg-info/SOURCES.txt
+nc2.egg-info/dependency_links.txt
+nc2.egg-info/entry_points.txt
+nc2.egg-info/requires.txt
+nc2.egg-info/top_level.txt

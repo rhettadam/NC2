@@ -2,7 +2,7 @@
 body {
   background-color: #1a1a1a; /* Darker gray for edges */
   color: #e0e0e0; /* Light gray text */
-  font-family: Arial, sans-serif;
+  font-family: "Gill Sans Extrabold", sans-serif;
   line-height: 1.6;
 }
 
@@ -27,31 +27,87 @@ header h1, footer p {
   color: #e0e0e0;
 }
 
+/* Navigation Styles */
 nav ul {
   list-style: none;
   padding: 0;
+  margin: 0;
 }
 
 nav ul li {
-  display: inline;
-  margin-right: 15px;
+  display: inline-block; /* Allows for padding and margin adjustments */
+  margin-right: 20px; /* Space between links */
 }
 
 nav ul li a {
-  color: #57A7FF; /* Link color */
+  color: #0f86fc; /* Link color */
   text-decoration: none;
+  font-size: 1.5em; /* Increase the font size */
+  padding: 5px 0px; /* Add padding around the links */
+  display: inline-block;
+  font-weight: bold;
 }
 
 nav ul li a:hover {
-  text-decoration: underline;
+  text-decoration: none;
+  color: #FFD229; /* Change color on hover */
 }
 
 a {
-  color: #57A7FF; /* Link color */
+  padding: 0px 0px;
+  text-decoration: none;
+  color: #0f86fc;
+  font-weight: bold/* Link color */
 }
 
 a:hover {
+  text-decoration: none;
   color: #FFD229; /* Maintain the link color on hover */
+}
+
+/* Custom Styles */
+h1 {
+  background: linear-gradient(45deg, #87CEFA, #4682B4, #1E90FF, #0000FF, #8A2BE2, #6A5ACD, #7B68EE, #4B0082, #800080, #6A0D91); /* Gradient from light blue to purple */
+  -webkit-background-clip: text; /* For Chrome, Safari, and Edge */
+  -moz-background-clip: text; /* For Firefox */
+  background-clip: text; /* Standard syntax */
+  color: transparent; /* Hide the original text color */
+  font-size: 3em; /* Adjust size as needed */
+}
+
+h2 {
+  color: #FFD229; /* Color for h2 */
+}
+
+h3 {
+  color: #FFD229; /* Color for h3 */
+}
+
+img {
+  border-radius: 5px;
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+  max-width: 100%;
+}
+
+section {
+  margin: 20px 0;
+}
+
+.code-block {
+  font-size: 18px;
+  background-color: #f4f4f4;
+  padding: 10px;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+pre {
+  font-size: 18px;
+  background-color: #212121; /* Darker background for code blocks */
+  color: #e0e0e0; /* Light gray text */
+  padding: 10px;
+  border-radius: 4px;
+  overflow-x: auto;
 }
 
 /* Custom Styles */

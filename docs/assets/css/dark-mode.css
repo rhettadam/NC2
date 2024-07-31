@@ -2,18 +2,25 @@
 body {
   background-color: #1a1a1a; /* Darker gray for edges */
   color: #e0e0e0; /* Light gray text */
+  font-family: Arial, sans-serif;
+  line-height: 1.6;
 }
 
 .wrapper {
-  background-color: #2a2a2a; /* Lighter dark gray for center page */
+  background-color: #1a1a1a; 
   padding: 20px;
   border-radius: 8px;
 }
 
 header, footer {
-  background-color: #1a1a1a;
+  background-color: #2a2a2a;
   padding: 10px 20px;
   border-radius: 8px;
+}
+
+header img {
+  max-width: 250px; /* Adjust the max width */
+  height: auto; /* Maintain aspect ratio */
 }
 
 header h1, footer p {
@@ -31,7 +38,7 @@ nav ul li {
 }
 
 nav ul li a {
-  color: #e0e0e0;
+  color: #57A7FF; /* Link color */
   text-decoration: none;
 }
 
@@ -40,9 +47,54 @@ nav ul li a:hover {
 }
 
 a {
-  color: #4a90e2; /* Link color */
+  color: #57A7FF; /* Link color */
 }
 
 a:hover {
-  color: #7baaf7; /* Link hover color */
+  color: #FFD229; /* Maintain the link color on hover */
+}
+
+/* Custom Styles */
+h1 {
+  background: linear-gradient(45deg, #87CEFA, #4682B4, #1E90FF, #0000FF, #8A2BE2, #6A5ACD, #7B68EE, #4B0082, #800080, #6A0D91); /* Gradient from light blue to purple */
+  -webkit-background-clip: text; /* For Chrome, Safari, and Edge */
+  -moz-background-clip: text; /* For Firefox */
+  background-clip: text; /* Standard syntax */
+  color: transparent; /* Hide the original text color */
+  font-size: 3em; /* Adjust size as needed */
+}
+
+h2 {
+  color: #FFD229; /* Color for h2 */
+}
+
+h3 {
+  color: #FFD229; /* Color for h3 */
+}
+
+img {
+  border-radius: 5px;
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+  max-width: 100%;
+}
+
+section {
+  margin: 20px 0;
+}
+
+.code-block {
+  font-size: 18px;
+  background-color: #f4f4f4;
+  padding: 10px;
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+pre {
+  font-size: 18px;
+  background-color: #212121; /* Darker background for code blocks */
+  color: #e0e0e0; /* Light gray text */
+  padding: 10px;
+  border-radius: 4px;
+  overflow-x: auto;
 }

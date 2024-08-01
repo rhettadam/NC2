@@ -959,24 +959,23 @@ class NC2:
                 self.show_gif_in_window(gif_path)
 
     def time_series(self):
-        
         from scipy.optimize import curve_fit
         from scipy import stats
-        
+
         xlabel = self.xlabel_entry.get()
         ylabel = self.ylabel_entry.get()
         title = self.title_entry.get()
-        
+
         class CustomToolbar(NavigationToolbar2Tk):
             def mouse_move(self, event):
                 pass
             def set_message(self, s):
                 pass
-        
+
         time_plot = Toplevel(self.root)
         time_plot.title("Time Series")
         time_plot.geometry("800x550")
-    
+
         selected_variable = self.variable_dropdown.get()
         if not selected_variable or not self.dataset:
             return
@@ -991,28 +990,29 @@ class NC2:
             selected_depth = self.depth_index_map[selected_depth]
             data = np.mean(variable_data[:, selected_depth, :, :], axis=(1, 2)) 
 
-        time_values = range(self.time_steps)
+        time_indices = range(self.time_steps)
+        time_values_numeric = time_indices
+        time_values_datetime = [nc.num2date(self.time[idx], units=self.time_units) for idx in time_indices]
 
         def linear_func(x, a, b):
             return a * x + b
 
-        popt, _ = curve_fit(linear_func, time_values, data)
+        popt, _ = curve_fit(linear_func, time_values_numeric, data)
+        predicted_values = linear_func(time_values_numeric, *popt)
 
-        predicted_values = linear_func(time_values, *popt)
-
-        slope, intercept, r_value, p_value, std_err = stats.linregress(time_values, data)
+        slope, intercept, r_value, p_value, std_err = stats.linregress(time_values_numeric, data)
         mean_value = np.mean(data)
         std_deviation = np.std(data)
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-    
+
         if ylabel:
-            ax1.plot(time_values, data, label=f"{ylabel}", color='dodgerblue')
+            ax1.plot(time_values_numeric, data, label=f"{ylabel}", color='dodgerblue')
         else:
-            ax1.plot(time_values, data, label=(f'{selected_variable}'), color='dodgerblue')
-            
-        ax1.plot(time_values, predicted_values, '--', label='Prediction', color='darkorange')
-        
+            ax1.plot(time_values_numeric, data, label=f'{selected_variable}', color='dodgerblue')
+
+        ax1.plot(time_values_numeric, predicted_values, '--', label='Prediction', color='darkorange')
+
         if xlabel:
             ax1.set_xlabel(f"{xlabel}")
         else:
@@ -1021,32 +1021,39 @@ class NC2:
             ax1.set_ylabel(f"{ylabel}")
         else:
             ax1.set_ylabel(selected_variable)
-        
+
         if title:
             plt.suptitle(f'{title} ({depth_value} m)')
         else:
             plt.suptitle(f'Time Series ({depth_value} m)')
             ax1.set_title(f"Time Series of {selected_variable}")
         ax1.legend()
+
+        # Format x-axis labels with datetime
+        ax1.set_xticks(time_values_numeric[::int(self.time_steps / 10)])  # Adjust step size for ticks
+        ax1.set_xticklabels([dt.strftime('%Y-%m-%d') for dt in time_values_datetime[::int(self.time_steps / 10)]], rotation=45)
         
+        ax1.grid(True)
+        ax2.grid(True)
+
         stats_text = f"Mean: {mean_value:.2f}\n"
         stats_text += f"Std Dev: {std_deviation:.2f}\n"
         stats_text += f"R-squared: {r_value**2:.2f}\n"
         stats_text += f"P-value: {p_value:.4f}\n"
 
         ax1.text(.01, 0.005, stats_text, transform=ax1.transAxes, fontsize=10, verticalalignment='bottom')
-        
+
         ax2.hist(data, bins=15, edgecolor='black', alpha=0.7, color='dodgerblue')
         ax2.set_xlabel(selected_variable)
         ax2.set_title(f'Histogram of {selected_variable}')
-        
+
         plt.subplots_adjust(hspace=0.3)
         fig.tight_layout()
-        
+
         canvas = FigureCanvasTkAgg(fig, master=time_plot)
         canvas.draw()
         canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-        
+
         toolbar = CustomToolbar(canvas, pack_toolbar=False)
         toolbar.update()
         toolbar.pack(side=tk.BOTTOM, pady=10)
@@ -1054,21 +1061,21 @@ class NC2:
     def depth_series(self):
         from scipy.optimize import curve_fit
         from scipy import stats
-        
+
         xlabel = self.xlabel_entry.get()
         ylabel = self.ylabel_entry.get()
         title = self.title_entry.get()
-        
+
         class CustomToolbar(NavigationToolbar2Tk):
             def mouse_move(self, event):
                 pass
             def set_message(self, s):
                 pass
-            
+
         depth_plot = Toplevel(self.root)
         depth_plot.title("Depth Series")
         depth_plot.geometry("800x550")
-        
+
         selected_variable = self.variable_dropdown.get()
         if not selected_variable or not self.dataset:
             return
@@ -1077,18 +1084,17 @@ class NC2:
 
         selected_time = self.time_dropdown.get()
         selected_time = self.time_index_map[selected_time]
-        
+
         time_value = nc.num2date(self.time[selected_time], units=self.time_units)
-        
-        data = np.mean(variable_data[selected_time, :, :, :], axis=(1, 2))  
-        
-        depth_values = range(self.depth_levels)
-        
+
+        data = np.mean(variable_data[selected_time, :, :, :], axis=(1, 2))
+
+        depth_values = np.array([self.depth[idx] for idx in range(self.depth_levels)])
+
         def linear_func(x, a, b):
             return a * x + b
 
         popt, _ = curve_fit(linear_func, depth_values, data)
-
         predicted_values = linear_func(depth_values, *popt)
 
         slope, intercept, r_value, p_value, std_err = stats.linregress(depth_values, data)
@@ -1096,14 +1102,14 @@ class NC2:
         std_deviation = np.std(data)
 
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-        
+
         if ylabel:
             ax1.plot(depth_values, data, label=f"{ylabel}")
         else:
-            ax1.plot(depth_values, data, label=(f'{selected_variable}'))
-            
+            ax1.plot(depth_values, data, label=f'{selected_variable}')
+
         ax1.plot(depth_values, predicted_values, '--', label='Prediction', color='darkorange')
-        
+
         if xlabel:
             ax1.set_xlabel(f"{xlabel}")
         else:
@@ -1112,7 +1118,7 @@ class NC2:
             ax1.set_ylabel(f"{ylabel}")
         else:
             ax1.set_ylabel(selected_variable)
-        
+
         if title:
             plt.suptitle(f'{title} {time_value}')
         else:
@@ -1126,21 +1132,25 @@ class NC2:
         stats_text += f"P-value: {p_value:.4f}\n"
 
         ax1.text(.01, 0.005, stats_text, transform=ax1.transAxes, fontsize=10, verticalalignment='bottom')
-        
+
         ax2.hist(data, bins=15, edgecolor='black', alpha=0.7, color='dodgerblue')
         ax2.set_xlabel(selected_variable)
         ax2.set_title(f'Histogram of {selected_variable}')
         
+        ax1.grid(True)
+        ax2.grid(True)
+
         plt.subplots_adjust(hspace=0.3)
         fig.tight_layout()
 
         canvas = FigureCanvasTkAgg(fig, master=depth_plot)
         canvas.draw()
         canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-    
+
         toolbar = CustomToolbar(canvas, pack_toolbar=False)
         toolbar.update()
         toolbar.pack(side=tk.BOTTOM, pady=10)
+
         
     def depth_slice(self):
         

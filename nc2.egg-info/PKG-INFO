@@ -1,32 +1,34 @@
 Metadata-Version: 2.1
 Name: nc2
-Version: 0.1.0
+Version: 0.2.0
 Summary: NC² NetCDF viewer
 Home-page: https://github.com/rhettadam/NC2
 Author: Rhett R. Adam
 Author-email: rhettadambusiness@gmail.com
 Classifier: Programming Language :: Python :: 3
-Classifier: License :: OSI Approved :: MIT License
+Classifier: License :: OSI Approved :: GNU General Public License v3 (GPLv3)
 Classifier: Operating System :: OS Independent
 Requires-Python: >=3.6
 Description-Content-Type: text/markdown
 License-File: LICENSE
-Requires-Dist: numpy==1.26.4
-Requires-Dist: ttkbootstrap==1.10.1
-Requires-Dist: matplotlib==3.8.0
-Requires-Dist: cartopy==0.23.0
-Requires-Dist: netCDF4==1.6.2
-Requires-Dist: imageio==2.33.1
-Requires-Dist: pillow==10.2.0
-Requires-Dist: scipy==1.13.1
+Requires-Dist: numpy>=1.26.4
+Requires-Dist: ttkbootstrap>=1.10.1
+Requires-Dist: matplotlib>=3.8.0
+Requires-Dist: cartopy>=0.23.0
+Requires-Dist: netCDF4>=1.6.2
+Requires-Dist: imageio>=2.33.1
+Requires-Dist: pillow>=10.2.0
+Requires-Dist: scipy>=1.13.1
 
 # Welcome To NC²
 
-What are NetCDF Files?
+[![PyPI version](https://badge.fury.io/py/nc2.svg)](https://pypi.org/project/nc2/)
+
+## What are NetCDF Files?
 
 NetCDF (Network Common Data Form) is a set of software libraries and self-describing, machine-independent data formats that support the creation, access, and sharing of array-oriented scientific data. NetCDF files are widely used in climate science, meteorology, oceanography, and other fields to store and distribute large datasets. These files are valuable for their ability to store multi-dimensional data (such as temperature, humidity, and wind speed) efficiently, making them essential for researchers and scientists dealing with complex environmental data.
 
-NCview and Panoply
+## NCview and Panoply
 
 Programs such as NCview and Panoply have become indispensable tools for scientists working with NetCDF files.
 
@@ -36,7 +38,7 @@ Programs such as NCview and Panoply have become indispensable tools for scientis
 
 Both NCview and Panoply are essential for scientists who need to visualize and analyze their data quickly. However, these tools come with limitations, such as less intuitive user interfaces and a lack of customization options for publication-quality plots.
 
-What is NC²?
+## What is NC²?
 
 ![Logo4](https://github.com/user-attachments/assets/377cbe6b-5433-42c3-94a3-8f8b73f4ee7f)
 
@@ -59,14 +61,30 @@ Explore the features and capabilities of NC², and see how it can enhance your r
 
 ![Screenshot from 2024-07-23 22-41-41](https://github.com/user-attachments/assets/6a7d6af4-5c5b-495b-92e0-08599935cb88)
 
+## Installation
 
+To install NC², run the following command:
 
+```sh
+pip install nc2
+```
+After installation, you can run NC² from the command line as follows:
 
-# Contact Me!
+```sh
+nc2 path/to/your/file.nc
+```
+
+## Contact Me!
 
 rhettadambusiness@gmail.com
 
 Rhett R. Adam 7/25/24
 
 VU Undergrad EES
+
+## License
+
+NC² is distributed under the GPL-3.0 License. See the LICENSE file for details.
+
+Copyright (c) 2024 Rhett R. Adam
 

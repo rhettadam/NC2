@@ -18,7 +18,7 @@
 # You can create any custom variable you would like, and they will be accessible
 # in the templates via {{ site.myvariable }}.
 
-title: ""
+title: "NC²"
 logo: /assets/Logo3.png
 email: rhettadambusiness@gmail.com
 description: >- # this means to ignore newlines until "baseurl:"

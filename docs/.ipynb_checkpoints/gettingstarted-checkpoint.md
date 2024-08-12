@@ -5,8 +5,6 @@ permalink: /getting-started/
 ---
 # Getting Started
 
-## Installation
-
 <p style="font-size: 20px;">
 To install NC², run the following command:
 </p>
@@ -63,6 +61,7 @@ For four dimensional data, use the "Select Depth Level" dropdown to choose the d
 - **Reverse Colormap:** Toggle to reverse the color mapping.
 - **Colorbar Orientation:** Choose the orientation of the colorbar (right, left, top, bottom).
 <!-- Screenshot needed: Show the plot type and colormap selection options -->
+
 ## Adjust Plot Parameters
 - **V-Max and V-Min:** Set the maximum and minimum values for the color scale.
 - **Extents:** Define the geographical extents (xmin, xmax, ymin, ymax).
@@ -71,18 +70,24 @@ For four dimensional data, use the "Select Depth Level" dropdown to choose the d
 - **Labels:** Add labels for X-axis and Y-axis.
 - **Plot Title:** Set a title for your plot.
 <!-- Screenshot needed: Show the fields for V-Max, V-Min, extents, and toggles for gridlines, ocean/land -->
+
 ## Time Plot and Depth Plot
 - **Show Time Plot:** Click to visualize data over time.
 - **Show Depth Plot:** Click to visualize data over depth.
 <!-- Screenshot needed: Show the "Show Time Plot" and "Show Depth Plot" buttons -->
+
 ## GIF Generation
-- **FPS:** Adjust the frames per second for animations.
-- **Delete Images:** Clear the current images from the viewer.
+- **FPS**: Specify the FPS (Frames Per Second) of the GIF file
+- **Range**: Specify the indice that the GIF generation should stop at
+- **Loop**: Produce a looping GIF file
+- **Delete/Save Images**: Delete or save images after GIF generation
+
 ![gif](https://github.com/user-attachments/assets/d071b27f-0efc-4d3b-b01b-76e6d0b5eb77)
-<!-- Screenshot needed: Show the GIF generation options -->
+
 ## Additional Features
 - **Show in Window:** Toggle to display the plot in a separate window.
 <!-- Screenshot needed: Highlight the additional feature buttons -->
+
 ## Viewing Data Information
 <p style="font-size: 20px;">
 View detailed metadata about the loaded NetCDF file and selected variable in the lower panel.

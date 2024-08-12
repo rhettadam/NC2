@@ -1,4 +1,3 @@
-/* Dark Mode Styles */
 body {
   background-color: #1a1a1a; /* Darker gray for edges */
   color: #e0e0e0; /* Light gray text */
@@ -13,14 +12,16 @@ body {
 }
 
 header, footer {
-  background-color: #2a2a2a;
+  background: linear-gradient(90deg, rgba(0,139,255,0) 0%, rgba(0,139,255,0.5) 20%, rgba(0,139,255,0.6) 35%, rgba(136,0,255,0.85) 50%, rgba(255,209,0,0.85) 90%);
   padding: 10px 20px;
   border-radius: 8px;
+  color: white; /* Adjust text color if necessary */
 }
 
 header img {
   max-width: 250px; /* Adjust the max width */
   height: auto; /* Maintain aspect ratio */
+    box-shadow: none;
 }
 
 header h1, footer p {
@@ -40,7 +41,7 @@ nav ul li {
 }
 
 nav ul li a {
-  color: #0f86fc; /* Link color */
+  color: #57b4ff; /* Link color */
   text-decoration: none;
   font-size: 1.5em; /* Increase the font size */
   padding: 5px 0px; /* Add padding around the links */
@@ -56,8 +57,9 @@ nav ul li a:hover {
 a {
   padding: 0px 0px;
   text-decoration: none;
-  color: #0f86fc;
-  font-weight: bold/* Link color */
+  color: #57b4ff;
+  font-weight: bold;/* Link color */
+  transition: color 0.3s ease, background-color 0.3s ease;    
 }
 
 a:hover {
@@ -98,14 +100,6 @@ img {
 
 section {
   margin: 20px 0;
-}
-
-.code-block {
-  font-size: 25px;
-  background-color: #f4f4f4;
-  padding: 10px;
-  border-radius: 4px;
-  overflow-x: auto;
 }
 
 pre {

@@ -7,6 +7,10 @@
 
     {% seo %}
     <link rel="stylesheet" href="{{ "/assets/css/dark-mode.css" | relative_url }}">
+    
+    <!-- Prism.js CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+
     <!--[if lt IE 9]>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5shiv/3.7.3/html5shiv.min.js"></script>
     <![endif]-->
@@ -60,6 +64,9 @@
 
     <!-- Existing JavaScript -->
     <script src="{{ "/assets/js/scale.fix.js" | relative_url }}"></script>
+
+    <!-- Prism.js Script -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
 
     <!-- Smooth Scrolling for Anchor Links -->
     <script>

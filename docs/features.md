@@ -35,7 +35,11 @@ permalink: /features/
 ## 6. Data Visualization
 - **Show in Window**: Display the selected data variable in a separate window.
 - **Save as GIF**: Option to save the animation as a GIF for easy sharing and presentation.
-- **GIF Options**: Adjust the frames per second for the animations to control the playback speed and enable/disable loop.
+- **GIF Options**: Options for GIF generation:
+    - **FPS**: Specify the FPS (Frames Per Second) of the GIF file
+    - **Range**: Specify the indice that the GIF generation should stop at
+    - **Loop**: Produce a looping GIF file
+    - **Delete/Save Images**: Delete or save images after GIF generation
 - **Playback Controls**: Play, pause, reverse, speed up, slow down, and stop animations to analyze temporal changes in the dataset.
 
 ## 7. Interactive Analysis Tools
@@ -54,7 +58,7 @@ permalink: /features/
 - **Publication-Quality Plots**: Ability to produce highly customizable and publication-quality plots suitable for scientific presentations and publications.
 
 ## 10. Additional Features
-- **Navigation Toolbar**: Plot navigation toolbar with buttons
+- **Navigation Toolbar**: Plot navigation toolbar with buttons:
     - Reset original view 
     - Back to previous view 
     - Forward to next view 

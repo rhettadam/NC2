@@ -3,7 +3,11 @@ layout: default
 title: ""
 ---
 
-# Welcome to NC²
+<p style="font-size: 20px;">
+Welcome to
+</p>
+<span class="gradient-text" style="font-size: 4em;">NC²</span>
+
 <p style="font-size: 20px;">
 NC² is a versatile NetCDF viewer for quickly plotting data, leveraging common scientific Python tools such as Matplotlib and Cartopy to produce publication-quality plots.
 </p>
@@ -78,7 +82,7 @@ After installation, you can run NC² from the command line as follows:
 nc2 path/to/your/file.nc
 ```
 
-## Contact Me
+# Contact Me
 
 <p style="font-size: 20px;">
 For any inquiries, suggestions, or feedback, feel free to reach out:

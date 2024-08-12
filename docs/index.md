@@ -78,7 +78,7 @@ After installation, you can run NC² from the command line as follows:
 nc2 path/to/your/file.nc
 ```
 
-## Contact Me
+# Contact Me
 
 <p style="font-size: 20px;">
 For any inquiries, suggestions, or feedback, feel free to reach out:

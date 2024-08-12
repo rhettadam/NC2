@@ -72,7 +72,13 @@ h1 {
   -moz-background-clip: text; /* For Firefox */
   background-clip: text; /* Standard syntax */
   color: transparent; /* Hide the original text color */
-  font-size: 3em; /* Adjust size as needed */
+  font-size: 5em; /* Adjust size as needed */
+  background-size: 100%; /* Ensures the gradient covers the entire text */
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  display: inline-block;
+  padding: 0;
+  margin: 0;
 }
 
 h2 {
@@ -81,6 +87,7 @@ h2 {
 
 h3 {
   color: #FFD229; /* Color for h3 */
+  font-size: 3em;
 }
 
 img {
@@ -94,7 +101,7 @@ section {
 }
 
 .code-block {
-  font-size: 18px;
+  font-size: 25px;
   background-color: #f4f4f4;
   padding: 10px;
   border-radius: 4px;
@@ -110,19 +117,3 @@ pre {
   overflow-x: auto;
 }
 
-.code-block {
-  font-size: 18px;
-  background-color: #f4f4f4;
-  padding: 10px;
-  border-radius: 4px;
-  overflow-x: auto;
-}
-
-pre {
-  font-size: 18px;
-  background-color: #212121; /* Darker background for code blocks */
-  color: #e0e0e0; /* Light gray text */
-  padding: 10px;
-  border-radius: 4px;
-  overflow-x: auto;
-}

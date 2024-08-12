@@ -36,10 +36,16 @@ Explore the features and capabilities of NC², and see how it can enhance your r
 
 ![Screenshot from 2024-07-23 22-41-41](https://github.com/user-attachments/assets/6a7d6af4-5c5b-495b-92e0-08599935cb88)
 
-# Contact Me!
+## Contact Me
 
-rhettadambusiness@gmail.com
+<p style="font-size: 20px;">
+For any inquiries, suggestions, or feedback, feel free to reach out:
+</p>
 
-Rhett R. Adam 7/25/24
+```sh
+Email: rhettadambusiness@gmail.com
+
+Rhett R. Adam
 
 VU Undergrad EES
+```

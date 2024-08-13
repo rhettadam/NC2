@@ -55,8 +55,9 @@ For four dimensional data, use the "Select Depth Level" dropdown to choose the d
 </p>
 ![Screenshot from 2024-08-05 03-41-45](https://github.com/user-attachments/assets/d6e0caf5-c390-49b8-b17e-99b3d3002adc)
 
-## Plot Types and Colormap
+## Plot Types and Colormaps
 - **Select Plot Type:** Choose the type of plot (e.g., pcolormesh, contour).
+
 - **Select Colormap:** Choose the color scheme for your plot.
 - **Reverse Colormap:** Toggle to reverse the color mapping.
 - **Colorbar Orientation:** Choose the orientation of the colorbar (right, left, top, bottom).

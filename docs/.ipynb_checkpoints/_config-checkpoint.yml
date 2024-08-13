@@ -29,8 +29,6 @@ twitter_username:
 github_username:  rhettadam
 
 nav_links:
-  - title: "Home"
-    url: "/"
   - title: "About"
     url: "/about"
   - title: "Getting Started"

@@ -67,3 +67,17 @@ permalink: /features/
     - Configure subplots 
     - Save figure
 - **Comprehensive Documentation**: Detailed user documentation available to help users understand and utilize all features effectively.
+
+# Contact Me
+
+<p style="font-size: 20px;">
+For any inquiries, suggestions, or feedback, feel free to reach out:
+</p>
+
+```sh
+Email: rhettadambusiness@gmail.com
+
+Rhett R. Adam
+
+VU Undergrad EES
+```

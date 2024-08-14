@@ -44,6 +44,8 @@
                 <p class="view"><a href="{{ site.github.owner_url }}">View My GitHub Profile</a></p>
                 {% endif %}
             </nav>
+            
+            <a class="download-button" href="{{ '/getting-started/' | relative_url }}">Download NC²</a>
 
             {% if site.show_downloads %}
             <ul class="downloads">
@@ -60,7 +62,7 @@
 
         <footer>
             {% if site.github.is_project_page %}
-            <p>NC² is maintained by <a href="{{ site.github.owner_url }}">{{ site.github.owner_name }}</a></p>
+            <p>NC² is maintained by <a href="{{ site.github.owner_url }}">{{ site.github.owner_name }}</a> </p>
             {% endif %}
         </footer>
     </div>

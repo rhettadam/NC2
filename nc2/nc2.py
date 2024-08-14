@@ -304,7 +304,7 @@ class NC2:
             self.variable_names = list(self.dataset.variables.keys())
             self.variable_dropdown['values'] = self.variable_names
 
-            time_keys = ['time', 'tau', 'date', 'month', 'year']
+            time_keys = ['time','Time','t','T','tau', 'date', 'month', 'year']
                 
             self.time = None
             self.time_key = None
@@ -326,7 +326,7 @@ class NC2:
             else:
                 self.time_dropdown.configure(state='disabled')
             
-            depth_keys = ['depth', 'z', 'meters', 'zlev']
+            depth_keys = ['depth','Depth', 'z','Z','meters','m','zlev']
             
             self.depth = None
             self.depth_key = None

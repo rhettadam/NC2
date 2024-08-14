@@ -12,7 +12,8 @@ body {
 }
 
 header, footer {
-  background: linear-gradient(90deg, 
+  position: relative;
+    background: linear-gradient(90deg, 
       rgba(0,139,255,0) 0%,
       rgba(0,139,255,0.1) 5%,
       rgba(0,139,255,0.2) 10%,
@@ -78,6 +79,26 @@ nav ul li {
 .view a:hover {
   text-decoration: none;
   color: #FFD229; /* Change color on hover */
+}
+
+.download-button {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #262626;
+    color: #e0e0e0; 
+    padding: 10px 20px;
+    border-radius: 5px;
+    font-weight: bold;
+    text-decoration: none;
+    transition: background 0.3s ease-in-out, color 0.3s ease-in-out, border 0.3s ease;;
+}
+
+.download-button:hover {
+    color: #262626; 
+    background: linear-gradient(60deg, rgba(255,210,41,1) 0%, rgba(255,180,18,1) 81%);
+    border: 2px solid #262626;
 }
 
 nav ul li a {

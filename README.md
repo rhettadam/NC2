@@ -21,7 +21,7 @@ Both NCview and Panoply are essential for scientists who need to visualize and a
 ![Logo4](https://github.com/user-attachments/assets/377cbe6b-5433-42c3-94a3-8f8b73f4ee7f)
 
 
-NC² is a next-generation NetCDF viewer designed to overcome the limitations of traditional tools like NCview and Panoply. Built with modern scientific Python tools such as CartoPy and Matplotlib, NC² offers a versatile and user-friendly platform for visualizing and analyzing NetCDF data. Here’s what NC² brings to the table:
+NC² is a next-generation NetCDF viewer designed to overcome the limitations of traditional tools like NCview and Panoply. Built with CartoPy and Matplotlib, NC² offers a versatile and user-friendly platform for visualizing and analyzing NetCDF data. Here’s what NC² brings to the table:
 
     Modern GUI: NC² features a clean and intuitive graphical user interface (GUI) that significantly reduces the learning curve for new users. 
 

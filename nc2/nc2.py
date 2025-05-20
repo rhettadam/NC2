@@ -16,7 +16,7 @@ import time
 import sys
 import os
 import argparse
-from pkg_resources import resource_filename
+import importlib.resources
 import netCDF4 as nc
 import numpy as np
 
@@ -33,8 +33,31 @@ class NC2:
         self.forward_pressed = False
         self.backward_pressed = False
         
-        logo_path = resource_filename(__name__, 'Logo3.png')
-        self.logo = ImageTk.PhotoImage(file=logo_path)
+        # Initialize dimension tracking
+        self.time = None
+        self.time_key = None
+        self.time_units = None
+        self.time_steps = 0
+        self.time_index_map = {}
+        
+        self.depth = None
+        self.depth_key = None
+        self.depth_units = None
+        self.depth_levels = 0
+        self.depth_index_map = {}
+        
+        self.lat = None
+        self.lon = None
+        self.lat_key = None
+        self.lon_key = None
+        
+        # Initialize coordinate and dimension tracking
+        self.coord_vars = {}
+        self.dim_vars = {}
+        self.dim_info = {}
+        
+        logo_path = importlib.resources.files('nc2').joinpath('Logo3.png')
+        self.logo = ImageTk.PhotoImage(file=str(logo_path))
         
         self.create_widgets()
         
@@ -167,8 +190,8 @@ class NC2:
         self.colorbar_orientation_label = tb.Label(control_frame_right, text="Colorbar Orientation:", font=("Helvetica", 12))
         self.colorbar_orientation_label.pack(pady=5)
         self.colorbar_orientation_dropdown = tb.Combobox(control_frame_right, state="readonly", bootstyle='secondary')
-        self.colorbar_orientation_dropdown['values'] = ['left', 'right', 'top', 'bottom']
-        self.colorbar_orientation_dropdown.set('right')
+        self.colorbar_orientation_dropdown['values'] = ['vertical', 'horizontal']
+        self.colorbar_orientation_dropdown.set('vertical')
         self.colorbar_orientation_dropdown.pack(pady=5)
         
         self.cbar_shrink_entry_var = tk.StringVar()
@@ -294,89 +317,184 @@ class NC2:
         self.colormap_dropdown.set('jet') 
     
     def select_file(self):
-        self.file_path = filedialog.askopenfilename(filetypes=[("NetCDF files", "*.nc*")])
+        filetypes = [
+            ("NetCDF files", "*.nc"),
+            ("NetCDF files", "*.nc4"),
+            ("NetCDF files", "*.cdf"),
+            ("NetCDF files", "*.netcdf"),
+            ("All files", "*.*")
+        ]
+        self.file_path = filedialog.askopenfilename(
+            title="Select NetCDF File",
+            filetypes=filetypes,
+            initialdir=os.path.expanduser("~")
+        )
         if self.file_path:
-            self.load_netcdf_file()
+            try:
+                # Try to open the file to verify it's a valid NetCDF file
+                with nc.Dataset(self.file_path, 'r') as test_dataset:
+                    pass
+                self.load_netcdf_file()
+            except Exception as e:
+                self.data_display_text.delete("1.0", tk.END)
+                self.data_display_text.insert(tk.END, f"Error: Selected file is not a valid NetCDF file.\n{str(e)}")
+                self.file_path = None
     
     def load_netcdf_file(self):
         try:
             self.dataset = nc.Dataset(self.file_path)
+            
+            # Get all variables and their dimensions
             self.variable_names = list(self.dataset.variables.keys())
-            self.variable_dropdown['values'] = self.variable_names
-
-            time_keys = ['time','Time','t','T','tau', 'date', 'month', 'year']
-                
+            
+            # Initialize coordinate and dimension tracking
+            self.coord_vars = {}
+            self.dim_vars = {}
+            self.dim_info = {}
+            
+            # First pass: identify all dimensions and their sizes
+            for dim_name, dim in self.dataset.dimensions.items():
+                self.dim_vars[dim_name] = dim
+                self.dim_info[dim_name] = {
+                    'size': len(dim),
+                    'is_unlimited': dim.isunlimited(),
+                    'coord_var': None,
+                    'type': None
+                }
+            
+            # Second pass: identify coordinate variables and their types
+            for var_name, var in self.dataset.variables.items():
+                # Check if this is a coordinate variable (matches its dimension name)
+                if var_name in self.dataset.dimensions:
+                    self.coord_vars[var_name] = var
+                    self.dim_info[var_name]['coord_var'] = var
+                    
+                    # Try to determine dimension type
+                    if hasattr(var, 'units'):
+                        units = var.units.lower()
+                        if any(unit in units for unit in ['time', 'date', 'since']):
+                            self.dim_info[var_name]['type'] = 'time'
+                        elif any(unit in units for unit in ['degree', 'radian']):
+                            if 'lon' in var_name.lower() or 'x' in var_name.lower():
+                                self.dim_info[var_name]['type'] = 'longitude'
+                            elif 'lat' in var_name.lower() or 'y' in var_name.lower():
+                                self.dim_info[var_name]['type'] = 'latitude'
+                        elif any(unit in units for unit in ['meter', 'depth', 'height']):
+                            self.dim_info[var_name]['type'] = 'vertical'
+                    # If no units, try to determine type from standard_name
+                    elif hasattr(var, 'standard_name'):
+                        std_name = var.standard_name.lower()
+                        if 'time' in std_name:
+                            self.dim_info[var_name]['type'] = 'time'
+                        elif 'longitude' in std_name:
+                            self.dim_info[var_name]['type'] = 'longitude'
+                        elif 'latitude' in std_name:
+                            self.dim_info[var_name]['type'] = 'latitude'
+                        elif 'depth' in std_name:
+                            self.dim_info[var_name]['type'] = 'vertical'
+            
+            # Identify primary dimensions based on common patterns
             self.time = None
             self.time_key = None
-
-            for key in time_keys:
-                if key in self.dataset.variables:
-                    self.time = self.dataset.variables[key]
-                    self.time_key = key
+            self.depth = None
+            self.depth_key = None
+            self.lat = None
+            self.lon = None
+            self.lat_key = None
+            self.lon_key = None
+            
+            # Find time dimension
+            for dim_name, info in self.dim_info.items():
+                if info['type'] == 'time':
+                    self.time = self.coord_vars[dim_name]
+                    self.time_key = dim_name
                     break
-
-
+            
+            # Find vertical dimension
+            for dim_name, info in self.dim_info.items():
+                if info['type'] == 'vertical' or dim_name.lower() == 'depth':
+                    self.depth = self.coord_vars[dim_name]
+                    self.depth_key = dim_name
+                    break
+            
+            # Find spatial dimensions
+            for dim_name, info in self.dim_info.items():
+                if info['type'] == 'latitude':
+                    self.lat = self.coord_vars[dim_name][:]
+                    self.lat_key = dim_name
+                elif info['type'] == 'longitude':
+                    self.lon = self.coord_vars[dim_name][:]
+                    self.lon_key = dim_name
+            
+            # Handle time dimension
             if self.time is not None:
-                self.time_units = self.time.units
-                self.time_steps = len(self.time)
-                time_values = [nc.num2date(self.time[t], units=self.time_units) for t in range(self.time_steps)]
-                self.time_index_map = {str(time_values[i]): i for i in range(self.time_steps)}
-                self.time_dropdown['values'] = list(self.time_index_map.keys())
-                self.time_dropdown.set(list(self.time_index_map.keys())[0])
+                try:
+                    self.time_units = self.time.units if hasattr(self.time, 'units') else 'unknown'
+                    self.time_steps = len(self.time)
+                    time_values = [nc.num2date(self.time[t], units=self.time_units) for t in range(self.time_steps)]
+                    self.time_index_map = {str(time_values[i]): i for i in range(self.time_steps)}
+                    self.time_dropdown['values'] = list(self.time_index_map.keys())
+                    self.time_dropdown.set(list(self.time_index_map.keys())[0])
+                    self.time_dropdown.configure(state='readonly')
+                except Exception as e:
+                    print(f"Warning: Could not process time values: {e}")
+                    self.time_dropdown.configure(state='disabled')
             else:
                 self.time_dropdown.configure(state='disabled')
             
-            depth_keys = ['depth','Depth', 'z','Z','meters','m','zlev']
-            
-            self.depth = None
-            self.depth_key = None
-            
-            for key in depth_keys:
-                if key in self.dataset.variables:
-                    self.depth = self.dataset.variables[key]
-                    self.depth_key = key
-                    break
-            
+            # Handle depth dimension
             if self.depth is not None:
-                self.depth_units = self.depth.units
-                self.depth_levels = len(self.depth)
-                depth_values = [self.depth[d] for d in range(self.depth_levels)]
-                self.depth_index_map = {str(depth_values[i]): i for i in range(self.depth_levels)}
-                self.depth_dropdown['values'] = list(self.depth_index_map.keys())
-                self.depth_dropdown.set(list(self.depth_index_map.keys())[0])
+                try:
+                    self.depth_units = self.depth.units if hasattr(self.depth, 'units') else 'unknown'
+                    self.depth_levels = len(self.depth)
+                    depth_values = self.depth[:]  # Get actual depth values
+                    self.depth_index_map = {f"{depth_values[i]:.2f} {self.depth_units}": i for i in range(self.depth_levels)}
+                    self.depth_dropdown['values'] = list(self.depth_index_map.keys())
+                    self.depth_dropdown.set(list(self.depth_index_map.keys())[0])
+                    self.depth_dropdown.configure(state='readonly')
+                except Exception as e:
+                    print(f"Warning: Could not process depth values: {e}")
+                    self.depth_dropdown.configure(state='disabled')
             else:
                 self.depth_dropdown.configure(state='disabled')
-                
-            lat_keys = ['lat','Lat', 'latitude','Latitude', 'lats', 'y', 'Y']
-            lon_keys = ['lon','Lon', 'longitude','Longitude', 'lons', 'x', 'X']
-                
-            self.lat = None
-            self.lon = None
-
-            for key in lat_keys:
-                if key in self.dataset.variables:
-                    self.lat = self.dataset.variables[key][:]
-                    self.lat_key = key
-                    break
-
-
-            for key in lon_keys:
-                if key in self.dataset.variables:
-                    self.lon = self.dataset.variables[key][:]
-                    self.lon_key = key
-                    break
             
-            Dimensions = {self.time_key, self.depth_key, self.lat_key, self.lon_key}
-            
-            self.variable_names = [i for i in self.dataset.variables.keys() if i not in Dimensions]
+            # Filter out coordinate variables from the variable list
+            coord_vars = {self.time_key, self.depth_key, self.lat_key, self.lon_key}
+            self.variable_names = [i for i in self.dataset.variables.keys() if i not in coord_vars]
             self.variable_dropdown['values'] = self.variable_names
             
+            # Display file information
             self.data_display_text.delete("1.0", tk.END)
+            self.data_display_text.insert(tk.END, "=== File Information ===\n")
+            self.data_display_text.insert(tk.END, f"File: {os.path.basename(self.file_path)}\n")
+            self.data_display_text.insert(tk.END, f"Format: {self.dataset.file_format}\n\n")
+            
+            self.data_display_text.insert(tk.END, "=== Dimensions ===\n")
+            for dim_name, info in self.dim_info.items():
+                dim_type = info['type'] if info['type'] else 'unknown'
+                self.data_display_text.insert(tk.END, 
+                    f"{dim_name}: {info['size']} {'(unlimited)' if info['is_unlimited'] else ''} (type: {dim_type})\n")
+            
+            self.data_display_text.insert(tk.END, "\n=== Variables ===\n")
             for var_name, variable in self.dataset.variables.items():
-                self.data_display_text.insert(tk.END, f"{var_name}: {repr(variable)}\n\n")
+                self.data_display_text.insert(tk.END, f"\n{var_name}:\n")
+                self.data_display_text.insert(tk.END, f"  Shape: {variable.shape}\n")
+                self.data_display_text.insert(tk.END, f"  Dimensions: {variable.dimensions}\n")
+                if hasattr(variable, 'units'):
+                    self.data_display_text.insert(tk.END, f"  Units: {variable.units}\n")
+                if hasattr(variable, 'long_name'):
+                    self.data_display_text.insert(tk.END, f"  Long name: {variable.long_name}\n")
+                if hasattr(variable, 'standard_name'):
+                    self.data_display_text.insert(tk.END, f"  Standard name: {variable.standard_name}\n")
+                if hasattr(variable, 'missing_value'):
+                    self.data_display_text.insert(tk.END, f"  Missing value: {variable.missing_value}\n")
+                if hasattr(variable, '_FillValue'):
+                    self.data_display_text.insert(tk.END, f"  Fill value: {variable._FillValue}\n")
             
         except Exception as e:
             print(f"Error loading NetCDF file: {e}")
+            self.data_display_text.delete("1.0", tk.END)
+            self.data_display_text.insert(tk.END, f"Error loading file: {str(e)}")
             
     def on_variable_selected(self, event):
         selected_variable = self.variable_dropdown.get()
@@ -404,24 +522,83 @@ class NC2:
 
     def calculate_time(self, event=None):
         try:
+            # Check if time dimension exists
+            if not hasattr(self, 'time') or self.time is None:
+                self.depth_time_label.config(text="No time dimension found")
+                return
+                
+            # Check if time dropdown has a selection
+            if not self.time_dropdown.get():
+                self.depth_time_label.config(text="No time step selected")
+                return
+                
+            # Get the selected time and its index
             selected_time = self.time_dropdown.get()
+            if selected_time not in self.time_index_map:
+                self.depth_time_label.config(text="Invalid time selection")
+                return
+                
             time_index = self.time_index_map[selected_time]
-            global time_value
-            time_value = nc.num2date(self.time[time_index], units=self.time_units)
-            self.depth_time_label.config(text=f"{time_value}")
-            self.show_statistics()
-            self.plot_variable()
+            
+            # Convert time value
+            try:
+                global time_value
+                time_value = nc.num2date(self.time[time_index], units=self.time_units)
+            except Exception as e:
+                self.depth_time_label.config(text=f"Error converting time: {str(e)}")
+                return
+            
+            # Update label based on whether depth is available
+            try:
+                if hasattr(self, 'depth') and self.depth is not None and self.depth_dropdown.get():
+                    selected_depth = self.depth_dropdown.get()
+                    if selected_depth in self.depth_index_map:
+                        depth_index = self.depth_index_map[selected_depth]
+                        depth_value = self.depth[depth_index]
+                        self.depth_time_label.config(text=f"{time_value} ({depth_value} {self.depth_units})")
+                    else:
+                        self.depth_time_label.config(text=f"{time_value}")
+                else:
+                    self.depth_time_label.config(text=f"{time_value}")
+            except Exception as e:
+                self.depth_time_label.config(text=f"{time_value} (Error with depth: {str(e)})")
+                
+            # Update statistics and plot
+            try:
+                self.show_statistics()
+                self.plot_variable()
+            except Exception as e:
+                self.depth_time_label.config(text=f"{time_value} (Error updating display: {str(e)})")
             
         except Exception as e:
-            self.depth_time_label.config(text=f"Error calculating time: {e}")
+            error_msg = str(e)
+            if "time_index_map" in error_msg:
+                self.depth_time_label.config(text="Time index map not initialized")
+            elif "time_units" in error_msg:
+                self.depth_time_label.config(text="Time units not found")
+            else:
+                self.depth_time_label.config(text=f"Error calculating time: {error_msg}")
 
     def calculate_depth(self, event=None):
         try:
+            if not hasattr(self, 'depth') or self.depth is None:
+                self.depth_time_label.config(text="No depth dimension found")
+                return
+                
             selected_depth = self.depth_dropdown.get()
             depth_index = self.depth_index_map[selected_depth]
             global depth_value
             depth_value = self.depth[depth_index]
-            self.depth_time_label.config(text=f"{time_value} ({depth_value} {self.depth_units})")
+            
+            # Update label based on whether time is available
+            if hasattr(self, 'time') and self.time is not None:
+                selected_time = self.time_dropdown.get()
+                time_index = self.time_index_map[selected_time]
+                time_value = nc.num2date(self.time[time_index], units=self.time_units)
+                self.depth_time_label.config(text=f"{time_value} ({depth_value} {self.depth_units})")
+            else:
+                self.depth_time_label.config(text=f"Depth: {depth_value} {self.depth_units}")
+                
             self.show_statistics()
             self.plot_variable()
             
@@ -429,37 +606,86 @@ class NC2:
             self.depth_time_label.config(text=f"Error calculating depth: {e}")
             
     def show_statistics(self):
-        selected_variable = self.variable_dropdown.get()
-        variable_data = self.dataset.variables[selected_variable]
-        
-        variable_dims = variable_data.dimensions
-    
-        if len(variable_dims) == 3:
-            selected_time_step = self.time_dropdown.get()
-            time_index = self.time_index_map[selected_time_step]
-            variable_data = variable_data[time_index, :, :]
-
-        elif len(variable_dims) == 4:
-            selected_time_step = self.time_dropdown.get()
-            time_index = self.time_index_map[selected_time_step]
-            selected_depth = self.depth_dropdown.get()
-            depth_index = self.depth_index_map[selected_depth]
-            variable_data = variable_data[time_index, depth_index, :, :]
-
-        if np.ma.isMaskedArray(variable_data):
-            variable_data = variable_data.compressed()
+        try:
+            if not hasattr(self, 'dataset') or self.dataset is None:
+                self.statistics_label.config(text="No dataset loaded")
+                return
+                
+            selected_variable = self.variable_dropdown.get()
+            if not selected_variable:
+                self.statistics_label.config(text="No variable selected")
+                return
+                
+            if selected_variable not in self.dataset.variables:
+                self.statistics_label.config(text=f"Variable {selected_variable} not found in dataset")
+                return
+                
+            variable_data = self.dataset.variables[selected_variable]
+            variable_dims = variable_data.dimensions
+            data = None
             
-        mean = np.round(float(np.mean(variable_data)), 4)
-        median = np.round(float(np.median(variable_data)), 4)
-        std_dev = np.round(float(np.std(variable_data)), 4)
-        min_val = np.round(float(np.min(variable_data)), 4)
-        max_val = np.round(float(np.max(variable_data)), 4)
-        
-        anomalies = variable_data > mean + 2 * std_dev
-        anomaly_count = np.sum(anomalies)
-        
-        stats_message = f"Mean: {mean}\nMedian: {median}\nStandard Deviation: {std_dev}\nDetected {anomaly_count} anomalies.\nMin: {min_val}\nMax: {max_val}"
-        self.statistics_label.config(text=f"{stats_message}")
+            try:
+                # Handle different dimension structures
+                if len(variable_dims) == 1:
+                    data = variable_data[:]
+                elif len(variable_dims) == 2:
+                    data = variable_data[:, :]
+                elif len(variable_dims) == 3:
+                    if hasattr(self, 'time') and self.time is not None:
+                        selected_time_step = self.time_dropdown.get()
+                        if not selected_time_step or selected_time_step not in self.time_index_map:
+                            self.statistics_label.config(text="Invalid time selection")
+                            return
+                        time_index = self.time_index_map[selected_time_step]
+                        data = variable_data[time_index, :, :]
+                    else:
+                        data = variable_data[:, :, :]
+                elif len(variable_dims) == 4:
+                    if hasattr(self, 'time') and self.time is not None and hasattr(self, 'depth') and self.depth is not None:
+                        selected_time_step = self.time_dropdown.get()
+                        selected_depth = self.depth_dropdown.get()
+                        if not selected_time_step or selected_time_step not in self.time_index_map:
+                            self.statistics_label.config(text="Invalid time selection")
+                            return
+                        if not selected_depth or selected_depth not in self.depth_index_map:
+                            self.statistics_label.config(text="Invalid depth selection")
+                            return
+                        time_index = self.time_index_map[selected_time_step]
+                        depth_index = self.depth_index_map[selected_depth]
+                        data = variable_data[time_index, depth_index, :, :]
+                    else:
+                        data = variable_data[:, :, :, :]
+                else:
+                    self.statistics_label.config(text=f"Unsupported dimension structure: {variable_dims}")
+                    return
+
+                if data is None:
+                    self.statistics_label.config(text="Unable to extract data")
+                    return
+
+                if np.ma.isMaskedArray(data):
+                    data = data.compressed()
+                    if len(data) == 0:
+                        self.statistics_label.config(text="No valid data points")
+                        return
+                    
+                mean = np.round(float(np.mean(data)), 4)
+                median = np.round(float(np.median(data)), 4)
+                std_dev = np.round(float(np.std(data)), 4)
+                min_val = np.round(float(np.min(data)), 4)
+                max_val = np.round(float(np.max(data)), 4)
+                
+                anomalies = data > mean + 2 * std_dev
+                anomaly_count = np.sum(anomalies)
+                
+                stats_message = f"Mean: {mean}\nMedian: {median}\nStandard Deviation: {std_dev}\nDetected {anomaly_count} anomalies.\nMin: {min_val}\nMax: {max_val}"
+                self.statistics_label.config(text=f"{stats_message}")
+                
+            except Exception as e:
+                self.statistics_label.config(text=f"Error processing data: {str(e)}")
+                
+        except Exception as e:
+            self.statistics_label.config(text=f"Error calculating statistics: {str(e)}")
         
     def toggle_gif_checkbox(self):
         if self.gif_checkbox_var.get():
@@ -533,739 +759,234 @@ class NC2:
         self.plot_variable()
 
     def plot_variable(self):
-        
-        class CustomToolbar(NavigationToolbar2Tk):
-            def mouse_move(self, event):
-                pass
-            def set_message(self, s):
-                pass
-                            
-        selected_variable = self.variable_dropdown.get()
-        selected_colormap = self.colormap_dropdown.get()
-        if self.reverse_colormap_var.get():
-            selected_colormap = selected_colormap + '_r'
-
-        plot_type = self.plot_type_dropdown.get()
-        colorbar_orientation = self.colorbar_orientation_dropdown.get()
-        selected_projection = self.projection_dropdown.get()
-        
-        lon, lat = np.meshgrid(self.lon, self.lat)
-        
-        if self.gridlines_var.get():
-            try:
-                alpha = float(self.alpha_entry.get())
-            except:
-                alpha = 0.5
-        else:
-            alpha = 0
-
         try:
-            vmin = float(self.vmin_entry.get())
-        except ValueError:
-            vmin = None
-        try:
-            vmax = float(self.vmax_entry.get())
-        except ValueError:
-            vmax = None
-            
-        try:
-            levels = int(self.levels_entry.get())
-        except ValueError:
-            levels = None
-            
-        try:
-            step = int(self.steps_entry.get())
-        except ValueError:
-            step = 5
-        try:
-            scale = float(self.scale_entry.get())
-        except ValueError:
-            scale = None
-            
-        try:
-            density = float(self.density_entry.get())
-        except ValueError:
-            density = 1
-            
-        try:
-            linewidth = float(self.linewidth_entry.get())
-        except ValueError:
-            linewidth=None
-            
-        try:
-            shrink = float(self.cbar_shrink_entry.get())
-        except ValueError:
-            shrink = 1
-            
-        try:
-            Range = int(self.time_steps_entry.get())
-        except ValueError:
-            Range = None
-            
-        if self.extent_entry.get():
-            try:
-                x_min, x_max, y_min, y_max = map(float, self.extent_entry.get().split(','))
-                manual_extent = [x_min, x_max, y_min, y_max]
-            except ValueError:
-                manual_extent = None
-
-        xlabel = self.xlabel_entry.get()
-        ylabel = self.ylabel_entry.get()
-        title = self.title_entry.get()
-
-        if self.gif_checkbox_var.get():
-            time_steps = range(self.time_steps)
-            if self.time_steps_entry.get():
-                if Range != None:
-                    time_steps = range(Range)
-        else:
-            current_index = [self.time_dropdown.current()]
-            
-            if self.forward_pressed:
-                current_index[0] += 1
-                self.time_dropdown.current(current_index)
-            else:
-                current_index = current_index
-                time_steps = current_index
-            self.forward_pressed = False
-            
-            if self.backward_pressed:
-                current_index[0] -= 1
-                self.time_dropdown.current(current_index)
-            else:
-                current_index = current_index
-                time_steps = current_index
-            self.backward_pressed = False
-
-        if selected_variable and self.dataset:
+            if not hasattr(self, 'dataset') or self.dataset is None:
+                self.data_display_text.insert(tk.END, "\nError: No dataset loaded\n")
+                return
+                
+            selected_variable = self.variable_dropdown.get()
+            if not selected_variable:
+                self.data_display_text.insert(tk.END, "\nError: No variable selected\n")
+                return
+                
+            if selected_variable not in self.dataset.variables:
+                self.data_display_text.insert(tk.END, f"\nError: Variable {selected_variable} not found in dataset\n")
+                return
+                
+            # Clear previous plot
             for widget in self.plot_frame.winfo_children():
                 widget.destroy()
+                
+            # Get plot parameters
+            try:
+                selected_colormap = self.colormap_dropdown.get()
+                if self.reverse_colormap_var.get():
+                    selected_colormap = selected_colormap + '_r'
 
+                plot_type = self.plot_type_dropdown.get()
+                colorbar_orientation = self.colorbar_orientation_dropdown.get()
+                selected_projection = self.projection_dropdown.get()
+                
+                # Parse numeric parameters
+                try:
+                    vmin = float(self.vmin_entry.get()) if self.vmin_entry.get() else None
+                except ValueError:
+                    vmin = None
+                    
+                try:
+                    vmax = float(self.vmax_entry.get()) if self.vmax_entry.get() else None
+                except ValueError:
+                    vmax = None
+                    
+                try:
+                    levels = int(self.levels_entry.get()) if self.levels_entry.get() else None
+                except ValueError:
+                    levels = None
+                    
+                try:
+                    step = int(self.steps_entry.get()) if self.steps_entry.get() else 5
+                except ValueError:
+                    step = 5
+                    
+                try:
+                    scale = float(self.scale_entry.get()) if self.scale_entry.get() else None
+                except ValueError:
+                    scale = None
+                    
+                try:
+                    density = float(self.density_entry.get()) if self.density_entry.get() else 1
+                except ValueError:
+                    density = 1
+                    
+                try:
+                    linewidth = float(self.linewidth_entry.get()) if self.linewidth_entry.get() else None
+                except ValueError:
+                    linewidth = None
+                    
+                try:
+                    shrink = float(self.cbar_shrink_entry.get()) if self.cbar_shrink_entry.get() else 1
+                except ValueError:
+                    shrink = 1
+                    
+                try:
+                    Range = int(self.time_steps_entry.get()) if self.time_steps_entry.get() else None
+                except ValueError:
+                    Range = None
+                    
+                # Parse extent if provided
+                manual_extent = None
+                if self.extent_entry.get():
+                    try:
+                        x_min, x_max, y_min, y_max = map(float, self.extent_entry.get().split(','))
+                        manual_extent = [x_min, x_max, y_min, y_max]
+                    except ValueError:
+                        self.data_display_text.insert(tk.END, "\nWarning: Invalid extent format. Using default extent.\n")
+
+                xlabel = self.xlabel_entry.get()
+                ylabel = self.ylabel_entry.get()
+                title = self.title_entry.get()
+                
+            except Exception as e:
+                self.data_display_text.insert(tk.END, f"\nError parsing plot parameters: {str(e)}\n")
+                return
+
+            # Determine time steps to plot
+            if self.gif_checkbox_var.get():
+                time_steps = range(self.time_steps)
+                if Range is not None:
+                    time_steps = range(Range)
+            else:
+                current_index = self.time_dropdown.current()
+                if self.forward_pressed:
+                    current_index += 1
+                    self.time_dropdown.current(current_index)
+                elif self.backward_pressed:
+                    current_index -= 1
+                    self.time_dropdown.current(current_index)
+                time_steps = [current_index]
+                self.forward_pressed = False
+                self.backward_pressed = False
+
+            # Get variable data and attributes
             variable_data = self.dataset.variables[selected_variable]
             variable_dims = variable_data.dimensions
-
-            if len(variable_dims) == 3:  
-                         
-                for t in time_steps:
-                    try:
-                        if self.gif_checkbox_var.get():
-                            plt.ioff()
-                            
-                        time_value = nc.num2date(self.time[t], units=self.time_units)
-
-                        data = variable_data[t, :, :] 
-
-                        fig, ax = plt.subplots(subplot_kw={'projection': self.projections[selected_projection]})
-                        
-                        transform = ccrs.PlateCarree()
-                        
-                        if self.land_checkbox_var.get():
-                            land = cfeature.NaturalEarthFeature('physical', 'land', '10m',edgecolor='face',facecolor=cfeature.COLORS['land'])
-                            ax.add_feature(land, zorder=0)
-                        if self.ocean_checkbox_var.get():
-                            ocean = cfeature.NaturalEarthFeature('physical', 'ocean', '10m',edgecolor='face',facecolor=cfeature.COLORS['water'])
-                            ax.add_feature(ocean, zorder=0)
-                        
-                        if plot_type == 'pcolormesh':
-                            pcm = ax.pcolormesh(lon, lat, data, cmap=selected_colormap, vmin=vmin, vmax=vmax, transform=transform)
-                        elif plot_type == 'contour':
-                            pcm = ax.contour(lon, lat, data, cmap=selected_colormap, levels=levels, vmin=vmin, vmax=vmax, transform=transform)
-                        elif plot_type == 'contourf':
-                            pcm = ax.contourf(lon, lat, data, cmap=selected_colormap, levels=levels, vmin=vmin, vmax=vmax, transform=transform)
-                        elif plot_type == 'imshow':
-                            pcm = ax.imshow(data, cmap=selected_colormap, vmin=vmin, vmax=vmax, transform=transform)
-                        elif plot_type == 'quiver':
-                            u = self.dataset.variables['water_u'][t,0,:,:]
-                            v = self.dataset.variables['water_v'][t,0,:,:]
-                            
-                            step = step  # Adjust this value to control the number of arrows
-                            lon_quiver = lon[::step, ::step]
-                            lat_quiver = lat[::step, ::step]
-                            u_quiver = u[::step, ::step]
-                            v_quiver = v[::step, ::step]
-                            
-                            pcm = ax.pcolormesh(lon, lat, data, cmap=selected_colormap, vmin=vmin, vmax=vmax, transform=transform)
-                            quiver = ax.quiver(lon_quiver, lat_quiver, u_quiver, v_quiver, scale=scale, transform=transform)
-                        elif plot_type == 'streamplot':
-                            u_raw = self.dataset.variables['water_u'][t, selected_depth, :, :]
-                            v_raw = self.dataset.variables['water_v'][t, selected_depth, :, :]
-                            u_fill_value = self.dataset.variables['water_u']._FillValue
-                            v_fill_value = self.dataset.variables['water_v']._FillValue
-                            scale_factor = self.dataset.variables['water_u'].scale_factor
-                            
-                            u = u_raw * scale_factor
-                            v = v_raw * scale_factor
-
-                            u = np.ma.masked_where(u_raw == u_fill_value, u)
-                            v = np.ma.masked_where(v_raw == v_fill_value, v)
-
-                            u = np.ma.masked_invalid(u)
-                            v = np.ma.masked_invalid(v)
-                            
-                            u = u.filled(0)
-                            v = v.filled(0)
-                            
-                            speed = np.sqrt(u**2 + v**2)
-                            
-                            pcm = ax.pcolormesh(lon, lat, data, cmap=selected_colormap, vmin=vmin, vmax=vmax, transform=transform)
-                            stream = ax.streamplot(lon, lat, u, v, cmap=selected_colormap, color=speed, density=density,linewidth=linewidth, transform=transform)
-                        
-                        cbar = plt.colorbar(pcm, ax=ax, location=colorbar_orientation, shrink=shrink)
-                        
-                        ax.coastlines(linewidth=.5)
-        
-                        gl = ax.gridlines(draw_labels=True, alpha=alpha)
-                        gl.top_labels = False
-                        gl.right_labels = False
-                        if xlabel:
-                            gl.bottom_labels = True
-                            ax.text(0.5, -0.19, xlabel, va='bottom', ha='center', rotation='horizontal', rotation_mode='anchor', transform=ax.transAxes, fontsize=12)
-                        if ylabel:
-                            gl.left_labels = True
-                            ax.text(-0.11, 0.5, ylabel, va='bottom', ha='center', rotation='vertical', rotation_mode='anchor', transform=ax.transAxes, fontsize=12)
-
-                        if title:
-                            ax.set_title(f'{title} ({time_value})')
-                        else:
-                            ax.set_title(f'{selected_variable} ({time_value})')
-                            
-                        if manual_extent:
-                            ax.set_extent(manual_extent, crs=ccrs.PlateCarree())
-                            
-                        if self.gif_checkbox_var.get():
-                            fig.savefig(os.path.join(self.gif_dir, f'frame_{t:03d}.png'))
-                            plt.close(fig)
-                        else:
-                            if self.window_plot_var.get():
-                                
-                                window_plot = Toplevel(self.root)
-                                
-                                canvas = FigureCanvasTkAgg(fig, master=window_plot)
-                                canvas.draw()
-                                canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-                                fig.canvas.mpl_connect('motion_notify_event', self.update_hover_info)
-                            
-                                controls_frame = tk.Frame(window_plot)
-                                controls_frame.pack(side=tk.TOP, fill=tk.X, pady=10)
-                            else:
-                                canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
-                                canvas.draw()
-                                canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-                                fig.canvas.mpl_connect('motion_notify_event', self.update_hover_info)
-                            
-                                controls_frame = tk.Frame(self.plot_frame)
-                                controls_frame.pack(side=tk.TOP, fill=tk.X, pady=10)
-                        
-                            self.time_plot_button = tb.Button(controls_frame, text="Show Time Plot", command=self.time_series, bootstyle='info')
-                            self.time_plot_button.pack(side=tk.LEFT, padx=10)
-                            self.backward_button = tb.Button(controls_frame, text="<<", command=self.backward, bootstyle='warning')
-                            self.backward_button.pack(side=tk.LEFT, padx=40)
-                        
-                            self.forward_button = tb.Button(controls_frame, text=">>", command=self.forward, bootstyle='warning')
-                            self.forward_button.pack(side=tk.RIGHT, padx=40)
-                        
-                            toolbar_frame = tk.Frame(controls_frame)
-                            toolbar_frame.pack(side=tk.TOP, fill=tk.X, pady=5, padx=20)
-                        
-                            toolbar = CustomToolbar(canvas, toolbar_frame, pack_toolbar=False)
-                            toolbar.update
-                            toolbar.pack(side=tk.BOTTOM, padx=10)
-                        
-                        plt.close(fig)
-
-                    except Exception as e:
-                        print(f"Error plotting variable at time step {t}: {e}")
-
+            var_units = getattr(variable_data, 'units', '')
+            var_long_name = getattr(variable_data, 'long_name', selected_variable)
             
-            elif len(variable_dims) == 4:  
-
-                selected_depth = self.depth_dropdown.get()
-                selected_depth = self.depth_index_map[selected_depth]
-                        
-                for t in time_steps:
-                    try:
-                        if self.gif_checkbox_var.get():
-                            plt.ioff()
-                            
-                        time_value = nc.num2date(self.time[t], units=self.time_units)
-
-                        data = variable_data[t, selected_depth, :, :] 
-
-                        fig, ax = plt.subplots(subplot_kw={'projection': self.projections[selected_projection]})
-                        
-                        transform = ccrs.PlateCarree()
-                        
-                        if self.land_checkbox_var.get():
-                            land = cfeature.NaturalEarthFeature('physical', 'land', '10m',edgecolor='face',facecolor=cfeature.COLORS['land'])
-                            ax.add_feature(land, zorder=0)
-                        if self.ocean_checkbox_var.get():
-                            ocean = cfeature.NaturalEarthFeature('physical', 'ocean', '10m',edgecolor='face',facecolor=cfeature.COLORS['water'])
-                            ax.add_feature(ocean, zorder=0)
-                        
-                        if plot_type == 'pcolormesh':
-                            pcm = ax.pcolormesh(lon, lat, data, cmap=selected_colormap, vmin=vmin, vmax=vmax, transform=transform)
-                        elif plot_type == 'contour':
-                            pcm = ax.contour(lon, lat, data, cmap=selected_colormap, levels=levels, vmin=vmin, vmax=vmax, transform=transform)
-                        elif plot_type == 'contourf':
-                            pcm = ax.contourf(lon, lat, data, cmap=selected_colormap, levels=levels, vmin=vmin, vmax=vmax, transform=transform)
-                        elif plot_type == 'imshow':
-                            pcm = ax.imshow(data, cmap=selected_colormap, vmin=vmin, vmax=vmax, transform=transform)
-                        elif plot_type == 'quiver':
-                            u = self.dataset.variables['water_u'][t,selected_depth,:,:]
-                            v = self.dataset.variables['water_v'][t,selected_depth,:,:]
-                            
-                            step = step  # Adjust this value to control the number of arrows
-                            lon_quiver = lon[::step, ::step]
-                            lat_quiver = lat[::step, ::step]
-                            u_quiver = u[::step, ::step]
-                            v_quiver = v[::step, ::step]
-                            
-                            pcm = ax.pcolormesh(lon, lat, data, cmap=selected_colormap, vmin=vmin, vmax=vmax, transform=transform)
-                            quiver = ax.quiver(lon_quiver, lat_quiver, u_quiver, v_quiver, units='width', scale=scale, transform=transform)
-                        elif plot_type == 'streamplot':
-                            u_raw = self.dataset.variables['water_u'][t, selected_depth, :, :]
-                            v_raw = self.dataset.variables['water_v'][t, selected_depth, :, :]
-                            u_fill_value = self.dataset.variables['water_u']._FillValue
-                            v_fill_value = self.dataset.variables['water_v']._FillValue
-                            scale_factor = self.dataset.variables['water_u'].scale_factor
-                            
-                            u = u_raw * scale_factor
-                            v = v_raw * scale_factor
-
-                            u = np.ma.masked_where(u_raw == u_fill_value, u)
-                            v = np.ma.masked_where(v_raw == v_fill_value, v)
-
-                            u = np.ma.masked_invalid(u)
-                            v = np.ma.masked_invalid(v)
-                            
-                            u = u.filled(0)
-                            v = v.filled(0)
-                            
-                            speed = np.sqrt(u**2 + v**2)
-                            
-                            pcm = ax.pcolormesh(lon, lat, data, cmap=selected_colormap, vmin=vmin, vmax=vmax, transform=transform)
-                            stream = ax.streamplot(lon, lat, u, v, cmap=selected_colormap, color=speed, density=density,linewidth=linewidth, transform=transform)
-                            
-                        cbar = plt.colorbar(pcm, ax=ax, location=colorbar_orientation, shrink=shrink)
-                        
-                        ax.coastlines(linewidth=.5)
-
-                        gl = ax.gridlines(draw_labels=True, alpha=alpha)
-                        gl.top_labels = False
-                        gl.right_labels = False
-                        
-                        if xlabel:
-                            gl.bottom_labels = True
-                            ax.text(0.5, -0.17, xlabel, va='bottom', ha='center', rotation='horizontal', rotation_mode='anchor', transform=ax.transAxes, fontsize=12)
-                        if ylabel:
-                            gl.left_labels = True
-                            ax.text(-0.12, 0.5, ylabel, va='bottom', ha='center', rotation='vertical', rotation_mode='anchor', transform=ax.transAxes, fontsize=12)
-
-                        if title:
-                            ax.set_title(f'{title} {time_value} ({depth_value} m)')
-                        else:
-                            ax.set_title(f'{selected_variable} ({time_value}) ({depth_value} m)')
-                            
-                        if manual_extent:
-                            ax.set_extent(manual_extent, crs=ccrs.PlateCarree())
-                            
-                        if self.gif_checkbox_var.get():
-                            fig.savefig(os.path.join(self.gif_dir, f'frame_{t:03d}.png'))
-                            plt.close(fig)
-                        else:
-                            if self.window_plot_var.get():
-                                
-                                self.window_plot = Toplevel(self.root)
-                            
-                                controls_frame = tk.Frame(self.window_plot)
-                                controls_frame.pack(side=tk.TOP, fill=tk.X, pady=10)
-                                
-                                canvas = FigureCanvasTkAgg(fig, master=self.window_plot)
-                                canvas.draw()
-                                canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-                                fig.canvas.mpl_connect('motion_notify_event', self.update_hover_info)
-                            else:
-                                canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
-                                canvas.draw()
-                                canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-                                fig.canvas.mpl_connect('motion_notify_event', self.update_hover_info)
-                            
-                                controls_frame = tk.Frame(self.plot_frame)
-                                controls_frame.pack(side=tk.TOP, fill=tk.X, pady=10)
-                        
-                            self.time_plot_button = tb.Button(controls_frame, text="Show Time Plot", command=self.time_series, bootstyle='info')
-                            self.time_plot_button.pack(side=tk.LEFT, padx=10)
-                            
-                            self.backward_button = tb.Button(controls_frame, text="<<", command=self.backward, bootstyle='warning')
-                            self.backward_button.pack(side=tk.LEFT, padx=40)
-
-                            self.depth_plot_button = tb.Button(controls_frame, text="Show Depth Plot", command=self.depth_series, bootstyle='info')
-                            self.depth_plot_button.pack(side=tk.RIGHT, padx=10)
-                            
-                            self.depth_slice_button = tb.Button(controls_frame, text="Slice", command=self.depth_slice, bootstyle='info')
-                            self.depth_slice_button.pack(side=tk.RIGHT, padx=10)
-                            
-                            self.slice_lon_entry = tb.Entry(controls_frame, width=5,bootstyle='secondary')
-                            self.slice_lon_entry.pack(side=tk.RIGHT, padx=10)
-                            self.slice_lon_label = tb.Label(controls_frame, text="Lon:", font=("Helvetica", 12))
-                            self.slice_lon_label.pack(side=tk.RIGHT, padx=5)
-                            
-                            self.slice_lat_entry = tb.Entry(controls_frame, width=5,bootstyle='secondary')
-                            self.slice_lat_entry.pack(side=tk.RIGHT, padx=10)
-                            self.slice_lat_label = tb.Label(controls_frame, text="Lat:", font=("Helvetica", 12))
-                            self.slice_lat_label.pack(side=tk.RIGHT, padx=5)
-                            
-                            self.forward_button = tb.Button(controls_frame, text=">>", command=self.forward, bootstyle='warning')
-                            self.forward_button.pack(side=tk.RIGHT, padx=10)
-                        
-                            toolbar_frame = tk.Frame(controls_frame)
-                            toolbar_frame.pack(side=tk.TOP, fill=tk.X)
-                        
-                            toolbar = CustomToolbar(canvas, toolbar_frame, pack_toolbar=False)
-                            toolbar.update
-                            toolbar.pack(side=tk.BOTTOM, padx=10)
-                            
-                            
-                        plt.close(fig)
-
-                    except Exception as e:
-                        print(f"Error plotting variable at time step {t}: {e}")
-                               
-            if self.gif_checkbox_var.get():
-                gif_path = os.path.join(self.gif_dir, 'animation.gif')
-                if self.gif_loop_var.get():
-                    gifloop=0
+            # Determine if this is a geographic dataset
+            is_geographic = (self.lat is not None and self.lon is not None)
+            
+            # Handle different dimension structures
+            if len(variable_dims) == 1:  # 1D data
+                # Simple line plot for 1D data
+                data = variable_data[:]
+                dim_name = variable_dims[0]
+                dim_values = self.coord_vars[dim_name][:] if dim_name in self.coord_vars else np.arange(len(data))
+                
+                fig, ax = plt.subplots()
+                ax.plot(dim_values, data)
+                ax.set_xlabel(dim_name)
+                ax.set_ylabel(var_long_name)
+                if title:
+                    ax.set_title(title)
                 else:
-                    gifloop=1    
+                    ax.set_title(f"{var_long_name} vs {dim_name}")
                 
-                try:
-                    gif_duration = int(self.gif_FPS_entry.get())
-                except ValueError:
-                    gif_duration = 6
-            
-                with imageio.get_writer(gif_path, mode='I', fps=gif_duration, loop=gifloop) as writer:
-                    for t in time_steps:
-                        filename = os.path.join(self.gif_dir, f'frame_{t:03d}.png')
-                        if os.path.exists(filename):
-                            image = imageio.imread(filename)
-                            writer.append_data(image)
-                if self.delete_images_var.get():
-                    for t in time_steps:
-                        filename = os.path.join(self.gif_dir, f'frame_{t:03d}.png')
-                        if os.path.exists(filename):
-                            os.remove(filename)
-                print(f"GIF saved at {gif_path}")
+                canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
+                canvas.draw()
+                canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
                 
-                self.show_gif_in_window(gif_path)
-
-    def time_series(self):
-        from scipy.optimize import curve_fit
-        from scipy import stats
-
-        xlabel = self.xlabel_entry.get()
-        ylabel = self.ylabel_entry.get()
-        title = self.title_entry.get()
-
-        class CustomToolbar(NavigationToolbar2Tk):
-            def mouse_move(self, event):
-                pass
-            def set_message(self, s):
-                pass
-
-        time_plot = Toplevel(self.root)
-        time_plot.title("Time Series")
-        time_plot.geometry("800x550")
-
-        selected_variable = self.variable_dropdown.get()
-        if not selected_variable or not self.dataset:
+            elif len(variable_dims) == 2:  # 2D data
+                # Try to determine if this is a spatial slice
+                if is_geographic:
+                    # Assume lat/lon ordering
+                    data = variable_data[:]
+                    if self.lat.shape[0] == data.shape[0] and self.lon.shape[0] == data.shape[1]:
+                        lon, lat = np.meshgrid(self.lon, self.lat)
+                    else:
+                        # Non-geographic 2D data
+                        dim1 = self.coord_vars[variable_dims[0]][:] if variable_dims[0] in self.coord_vars else np.arange(data.shape[0])
+                        dim2 = self.coord_vars[variable_dims[1]][:] if variable_dims[1] in self.coord_vars else np.arange(data.shape[1])
+                        lon, lat = np.meshgrid(dim2, dim1)
+                else:
+                    # Non-geographic 2D data
+                    data = variable_data[:]
+                    dim1 = self.coord_vars[variable_dims[0]][:] if variable_dims[0] in self.coord_vars else np.arange(data.shape[0])
+                    dim2 = self.coord_vars[variable_dims[1]][:] if variable_dims[1] in self.coord_vars else np.arange(data.shape[1])
+                    lon, lat = np.meshgrid(dim2, dim1)
+                
+                self._plot_2d_data(data, lon, lat, var_units, var_long_name, plot_type, selected_colormap,
+                                 vmin, vmax, levels, colorbar_orientation, shrink, xlabel, ylabel, title,
+                                 is_geographic, selected_projection, manual_extent)
+                
+            elif len(variable_dims) == 3:  # 3D data (time + 2D)
+                for t in time_steps:
+                    try:
+                        if self.gif_checkbox_var.get():
+                            plt.ioff()
+                            
+                        if self.time is not None:
+                            time_value = nc.num2date(self.time[t], units=self.time_units)
+                        else:
+                            time_value = f"Step {t}"
+                            
+                        data = variable_data[t, :, :]
+                        
+                        if is_geographic:
+                            lon, lat = np.meshgrid(self.lon, self.lat)
+                        else:
+                            dim1 = self.coord_vars[variable_dims[1]][:] if variable_dims[1] in self.coord_vars else np.arange(data.shape[0])
+                            dim2 = self.coord_vars[variable_dims[2]][:] if variable_dims[2] in self.coord_vars else np.arange(data.shape[1])
+                            lon, lat = np.meshgrid(dim2, dim1)
+                            
+                        self._plot_2d_data(data, lon, lat, var_units, var_long_name, plot_type, selected_colormap,
+                                         vmin, vmax, levels, colorbar_orientation, shrink, xlabel, ylabel,
+                                         f"{title or var_long_name} ({time_value})", is_geographic,
+                                         selected_projection, manual_extent)
+                        
+                    except Exception as e:
+                        print(f"Error plotting variable at time step {t}: {e}")
+                        
+            elif len(variable_dims) == 4:  # 4D data (time + depth + 2D)
+                selected_depth = self.depth_dropdown.get()
+                depth_index = self.depth_index_map[selected_depth]
+                
+                for t in time_steps:
+                    try:
+                        if self.gif_checkbox_var.get():
+                            plt.ioff()
+                            
+                        if self.time is not None:
+                            time_value = nc.num2date(self.time[t], units=self.time_units)
+                        else:
+                            time_value = f"Step {t}"
+                            
+                        data = variable_data[t, depth_index, :, :]
+                        
+                        if is_geographic:
+                            lon, lat = np.meshgrid(self.lon, self.lat)
+                        else:
+                            dim1 = self.coord_vars[variable_dims[2]][:] if variable_dims[2] in self.coord_vars else np.arange(data.shape[0])
+                            dim2 = self.coord_vars[variable_dims[3]][:] if variable_dims[3] in self.coord_vars else np.arange(data.shape[1])
+                            lon, lat = np.meshgrid(dim2, dim1)
+                            
+                        depth_str = f" at {selected_depth}" if selected_depth else f" at depth {depth_index}"
+                        self._plot_2d_data(data, lon, lat, var_units, var_long_name, plot_type, selected_colormap,
+                                         vmin, vmax, levels, colorbar_orientation, shrink, xlabel, ylabel,
+                                         f"{title or var_long_name} ({time_value}){depth_str}", is_geographic,
+                                         selected_projection, manual_extent)
+                        
+                    except Exception as e:
+                        print(f"Error plotting variable at time step {t}: {e}")
+                        
+            else:
+                # Handle other dimension structures
+                print(f"Unsupported dimension structure: {variable_dims}")
+                self.data_display_text.insert(tk.END, f"\nWarning: Unsupported dimension structure: {variable_dims}\n")
+                
+        except Exception as e:
+            self.data_display_text.insert(tk.END, f"\nError in plot_variable: {str(e)}\n")
             return
-
-        variable_data = self.dataset.variables[selected_variable]
-        variable_dims = variable_data.dimensions
-
-        if len(variable_dims) == 3: 
-            data = np.mean((variable_data)[:, :, :], axis=(1, 2))
-        elif len(variable_dims) == 4: 
-            selected_depth = self.depth_dropdown.get()
-            selected_depth = self.depth_index_map[selected_depth]
-            data = np.mean(variable_data[:, selected_depth, :, :], axis=(1, 2)) 
-
-        time_indices = range(self.time_steps)
-        time_values_numeric = time_indices
-        time_values_datetime = [nc.num2date(self.time[idx], units=self.time_units) for idx in time_indices]
-
-        def linear_func(x, a, b):
-            return a * x + b
-
-        popt, _ = curve_fit(linear_func, time_values_numeric, data)
-        predicted_values = linear_func(time_values_numeric, *popt)
-
-        slope, intercept, r_value, p_value, std_err = stats.linregress(time_values_numeric, data)
-        mean_value = np.mean(data)
-        std_deviation = np.std(data)
-
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-
-        if ylabel:
-            ax1.plot(time_values_numeric, data, label=f"{ylabel}", color='dodgerblue')
-        else:
-            ax1.plot(time_values_numeric, data, label=f'{selected_variable}', color='dodgerblue')
-
-        ax1.plot(time_values_numeric, predicted_values, '--', label='Prediction', color='darkorange')
-
-        if xlabel:
-            ax1.set_xlabel(f"{xlabel}")
-        else:
-            ax1.set_xlabel("Time")
-        if ylabel:
-            ax1.set_ylabel(f"{ylabel}")
-        else:
-            ax1.set_ylabel(selected_variable)
-
-        if title:
-            plt.suptitle(f'{title} ({depth_value} m)')
-        else:
-            plt.suptitle(f'Time Series ({depth_value} m)')
-            ax1.set_title(f"Time Series of {selected_variable}")
-        ax1.legend()
-
-        # Format x-axis labels with datetime
-        ax1.set_xticks(time_values_numeric[::int(self.time_steps / 10)])  # Adjust step size for ticks
-        ax1.set_xticklabels([dt.strftime('%Y-%m-%d') for dt in time_values_datetime[::int(self.time_steps / 10)]], rotation=45)
-        
-        ax1.grid(True)
-        ax2.grid(True)
-
-        stats_text = f"Mean: {mean_value:.2f}\n"
-        stats_text += f"Std Dev: {std_deviation:.2f}\n"
-        stats_text += f"R-squared: {r_value**2:.2f}\n"
-        stats_text += f"P-value: {p_value:.4f}\n"
-
-        ax1.text(.01, 0.005, stats_text, transform=ax1.transAxes, fontsize=10, verticalalignment='bottom')
-
-        ax2.hist(data, bins=15, edgecolor='black', alpha=0.7, color='dodgerblue')
-        ax2.set_xlabel(selected_variable)
-        ax2.set_title(f'Histogram of {selected_variable}')
-
-        plt.subplots_adjust(hspace=0.3)
-        fig.tight_layout()
-
-        canvas = FigureCanvasTkAgg(fig, master=time_plot)
-        canvas.draw()
-        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-
-        toolbar = CustomToolbar(canvas, pack_toolbar=False)
-        toolbar.update()
-        toolbar.pack(side=tk.BOTTOM, pady=10)
-        
-    def depth_series(self):
-        from scipy.optimize import curve_fit
-        from scipy import stats
-
-        xlabel = self.xlabel_entry.get()
-        ylabel = self.ylabel_entry.get()
-        title = self.title_entry.get()
-
-        class CustomToolbar(NavigationToolbar2Tk):
-            def mouse_move(self, event):
-                pass
-            def set_message(self, s):
-                pass
-
-        depth_plot = Toplevel(self.root)
-        depth_plot.title("Depth Series")
-        depth_plot.geometry("800x550")
-
-        selected_variable = self.variable_dropdown.get()
-        if not selected_variable or not self.dataset:
-            return
-
-        variable_data = self.dataset.variables[selected_variable]
-
-        selected_time = self.time_dropdown.get()
-        selected_time = self.time_index_map[selected_time]
-
-        time_value = nc.num2date(self.time[selected_time], units=self.time_units)
-
-        data = np.mean(variable_data[selected_time, :, :, :], axis=(1, 2))
-
-        depth_values = np.array([self.depth[idx] for idx in range(self.depth_levels)])
-
-        def linear_func(x, a, b):
-            return a * x + b
-
-        popt, _ = curve_fit(linear_func, depth_values, data)
-        predicted_values = linear_func(depth_values, *popt)
-
-        slope, intercept, r_value, p_value, std_err = stats.linregress(depth_values, data)
-        mean_value = np.mean(data)
-        std_deviation = np.std(data)
-
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-
-        if ylabel:
-            ax1.plot(depth_values, data, label=f"{ylabel}")
-        else:
-            ax1.plot(depth_values, data, label=f'{selected_variable}')
-
-        ax1.plot(depth_values, predicted_values, '--', label='Prediction', color='darkorange')
-
-        if xlabel:
-            ax1.set_xlabel(f"{xlabel}")
-        else:
-            ax1.set_xlabel("Depth (m)")
-        if ylabel:
-            ax1.set_ylabel(f"{ylabel}")
-        else:
-            ax1.set_ylabel(selected_variable)
-
-        if title:
-            plt.suptitle(f'{title} {time_value}')
-        else:
-            plt.suptitle(f'Depth Series {time_value}')
-            ax1.set_title(f"Depth Series of {selected_variable}")
-        ax1.legend()
-
-        stats_text = f"Mean: {mean_value:.2f}\n"
-        stats_text += f"Std Dev: {std_deviation:.2f}\n"
-        stats_text += f"R-squared: {r_value**2:.2f}\n"
-        stats_text += f"P-value: {p_value:.4f}\n"
-
-        ax1.text(.01, 0.005, stats_text, transform=ax1.transAxes, fontsize=10, verticalalignment='bottom')
-
-        ax2.hist(data, bins=15, edgecolor='black', alpha=0.7, color='dodgerblue')
-        ax2.set_xlabel(selected_variable)
-        ax2.set_title(f'Histogram of {selected_variable}')
-        
-        ax1.grid(True)
-        ax2.grid(True)
-
-        plt.subplots_adjust(hspace=0.3)
-        fig.tight_layout()
-
-        canvas = FigureCanvasTkAgg(fig, master=depth_plot)
-        canvas.draw()
-        canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-
-        toolbar = CustomToolbar(canvas, pack_toolbar=False)
-        toolbar.update()
-        toolbar.pack(side=tk.BOTTOM, pady=10)
-
-        
-    def depth_slice(self):
-        
-        selected_colormap = self.colormap_dropdown.get()
-        if self.reverse_colormap_var.get():
-            selected_colormap = self.colormap_dropdown.get() + '_r'
-            
-        colorbar_orientation = self.colorbar_orientation_dropdown.get()
-
-        try:
-            vmin = float(self.vmin_entry.get())
-        except ValueError:
-            vmin = None
-        try:
-            vmax = float(self.vmax_entry.get())
-        except ValueError:
-            vmax = None
-            
-        try:
-            shrink = float(self.cbar_shrink_entry.get())
-        except ValueError:
-            shrink = 0.75
-            
-        try:
-            lonslice = float(self.slice_lon_entry.get())
-        except ValueError:
-            lonslice = None
-                           
-        try:
-            latslice = float(self.slice_lat_entry.get())
-        except ValueError:
-            latslice = None
-        
-        class CustomToolbar(NavigationToolbar2Tk):
-            def mouse_move(self, event):
-                pass
-            def set_message(self, s):
-                pass
-            
-        depth_slice_window = Toplevel(self.root)
-        depth_slice_window.title("Depth Slice")
-        depth_slice_window.geometry("800x550")
-        
-        selected_variable = self.variable_dropdown.get()
-        if not selected_variable or not self.dataset:
-            return
-
-        variable_data = self.dataset.variables[selected_variable]
-
-        selected_time = self.time_dropdown.get()
-        selected_time = self.time_index_map[selected_time]
-        
-        depth = self.depth[:]
-        latitude = self.lat
-        longitude = self.lon
-        
-        print("Shapes:")
-        print("Variable data shape:", variable_data.shape)
-        print("Depth shape:", depth.shape)
-        print("Latitude shape:", latitude.shape)
-        print("Longitude shape:", longitude.shape)
-        print("Selected time index:", selected_time)
-                           
-        if lonslice:
-                           
-            target_lon = lonslice 
-            lon_idx = np.argmin(np.abs(longitude - target_lon))
-
-            print("Target longitude:", target_lon)
-            print("Calculated longitude index:", lon_idx)
-
-            data_slice = variable_data[selected_time,:,:,lon_idx] 
-
-            fig, ax = plt.subplots()
-            c = ax.pcolormesh(latitude, depth, data_slice, cmap=selected_colormap, vmin=vmin, vmax=vmax, shading='auto')
-            fig.colorbar(c, ax=ax, label=(selected_variable), shrink=shrink, location=colorbar_orientation)
-            ax.set_xlabel('Latitude')
-            ax.set_ylabel('Depth')
-            ax.set_title(f'Depth Slice at Longitude {target_lon}° {time_value}')
-            ax.invert_yaxis() 
-        
-            canvas = FigureCanvasTkAgg(fig, master=depth_slice_window)
-            canvas.draw()
-            canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-        
-            toolbar = CustomToolbar(canvas, pack_toolbar=False)
-            toolbar.update()
-            toolbar.pack(side=tk.BOTTOM, pady=10)
-                         
-        elif latslice:
-            
-            target_lat = latslice 
-            lat_idx = np.argmin(np.abs(latitude - target_lat))
-
-            print("Target latitude:", target_lat)
-            print("Calculated latitude index:", lat_idx)
-
-            data_slice = variable_data[selected_time,:,lat_idx,:]  
-            
-            fig, ax = plt.subplots()
-            
-            c = ax.pcolormesh(longitude, depth, data_slice, cmap=selected_colormap, vmin=vmin, vmax=vmax, shading='auto')
-            fig.colorbar(c, ax=ax, label=(selected_variable), shrink=shrink, location=colorbar_orientation)
-            ax.set_xlabel('Longitude')
-            ax.set_ylabel('Depth')
-            ax.set_title(f'Depth Slice at Latitude {target_lat}° {time_value}')
-            ax.invert_yaxis()  
-        
-            canvas = FigureCanvasTkAgg(fig, master=depth_slice_window)
-            canvas.draw()
-            canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-        
-            toolbar = CustomToolbar(canvas, pack_toolbar=False)
-            toolbar.update()
-            toolbar.pack(side=tk.BOTTOM, pady=10)
 
     def show_gif_in_window(self, gif_path):
         gif_window = Toplevel(self.root)
@@ -1356,6 +1077,109 @@ class NC2:
             
     def change_theme(self, theme_name):
         tb.Style().theme_use(theme_name)
+
+    def _plot_2d_data(self, data, lon, lat, var_units, var_long_name, plot_type, selected_colormap,
+                     vmin, vmax, levels, colorbar_orientation, shrink, xlabel, ylabel, title,
+                     is_geographic, selected_projection, manual_extent):
+        """Helper method to plot 2D data with various options."""
+        try:
+            # Create figure and axis
+            if is_geographic:
+                fig = plt.figure(figsize=(10, 8))
+                ax = plt.axes(projection=self.projections[selected_projection])
+                
+                # Set map extent
+                if manual_extent:
+                    ax.set_extent(manual_extent, crs=ccrs.PlateCarree())
+                else:
+                    ax.set_extent([lon.min(), lon.max(), lat.min(), lat.max()], crs=ccrs.PlateCarree())
+                
+                # Add map features
+                if self.gridlines_var.get():
+                    try:
+                        alpha = float(self.alpha_entry.get()) if self.alpha_entry.get() else 0.5
+                    except ValueError:
+                        alpha = 0.5
+                    ax.gridlines(draw_labels=True, alpha=alpha)
+                
+                if self.ocean_checkbox_var.get():
+                    ax.add_feature(cfeature.OCEAN)
+                if self.land_checkbox_var.get():
+                    ax.add_feature(cfeature.LAND)
+                
+                # Plot data
+                if plot_type == 'pcolormesh':
+                    plot = ax.pcolormesh(lon, lat, data, transform=ccrs.PlateCarree(),
+                                       cmap=selected_colormap, vmin=vmin, vmax=vmax)
+                elif plot_type == 'contour':
+                    plot = ax.contour(lon, lat, data, transform=ccrs.PlateCarree(),
+                                    cmap=selected_colormap, levels=levels, vmin=vmin, vmax=vmax)
+                elif plot_type == 'contourf':
+                    plot = ax.contourf(lon, lat, data, transform=ccrs.PlateCarree(),
+                                     cmap=selected_colormap, levels=levels, vmin=vmin, vmax=vmax)
+                elif plot_type == 'imshow':
+                    plot = ax.imshow(data, transform=ccrs.PlateCarree(), cmap=selected_colormap,
+                                   vmin=vmin, vmax=vmax, extent=[lon.min(), lon.max(), lat.min(), lat.max()])
+                else:
+                    plot = ax.pcolormesh(lon, lat, data, transform=ccrs.PlateCarree(),
+                                       cmap=selected_colormap, vmin=vmin, vmax=vmax)
+                
+                # Add colorbar
+                cbar = plt.colorbar(plot, ax=ax, orientation=colorbar_orientation, shrink=shrink)
+                cbar.set_label(f"{var_long_name} [{var_units}]")
+                
+                # Set labels and title
+                if xlabel:
+                    ax.set_xlabel(xlabel)
+                if ylabel:
+                    ax.set_ylabel(ylabel)
+                if title:
+                    ax.set_title(title)
+                
+            else:
+                # Non-geographic plot
+                fig, ax = plt.subplots(figsize=(10, 8))
+                
+                if plot_type == 'pcolormesh':
+                    plot = ax.pcolormesh(lon, lat, data, cmap=selected_colormap, vmin=vmin, vmax=vmax)
+                elif plot_type == 'contour':
+                    plot = ax.contour(lon, lat, data, cmap=selected_colormap, levels=levels, vmin=vmin, vmax=vmax)
+                elif plot_type == 'contourf':
+                    plot = ax.contourf(lon, lat, data, cmap=selected_colormap, levels=levels, vmin=vmin, vmax=vmax)
+                elif plot_type == 'imshow':
+                    plot = ax.imshow(data, cmap=selected_colormap, vmin=vmin, vmax=vmax)
+                else:
+                    plot = ax.pcolormesh(lon, lat, data, cmap=selected_colormap, vmin=vmin, vmax=vmax)
+                
+                # Add colorbar
+                cbar = plt.colorbar(plot, ax=ax, orientation=colorbar_orientation, shrink=shrink)
+                cbar.set_label(f"{var_long_name} [{var_units}]")
+                
+                # Set labels and title
+                if xlabel:
+                    ax.set_xlabel(xlabel)
+                if ylabel:
+                    ax.set_ylabel(ylabel)
+                if title:
+                    ax.set_title(title)
+            
+            # Add the plot to the GUI
+            canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+            
+            # Add navigation toolbar
+            toolbar = NavigationToolbar2Tk(canvas, self.plot_frame)
+            toolbar.update()
+            canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+            
+            # Connect hover event
+            canvas.mpl_connect('motion_notify_event', self.update_hover_info)
+            
+        except Exception as e:
+            print(f"Error in _plot_2d_data: {e}")
+            self.data_display_text.insert(tk.END, f"\nError plotting data: {str(e)}\n")
+            return
 
 def main():
     parser = argparse.ArgumentParser(description='Run NC² NetCDF viewer.')

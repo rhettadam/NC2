@@ -5,7 +5,7 @@ title: ""
 
 # Welcome to NC²
 <p style="font-size: 20px;">
-NC² is a versatile NetCDF viewer for quickly plotting data, leveraging common scientific Python tools such as Matplotlib and Cartopy to produce publication-quality plots.
+NC² is a versatile NetCDF viewer for quickly plotting data leveraging Matplotlib and Cartopy to produce publication-quality plots.
 </p>
 
 ## Modern GUI

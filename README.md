@@ -37,7 +37,7 @@ NC² is a next-generation NetCDF viewer designed to overcome the limitations of 
 
 Explore the features and capabilities of NC², and see how it can enhance your research and data analysis workflows.
 
-![Screenshot from 2024-07-23 22-41-41](https://github.com/user-attachments/assets/6a7d6af4-5c5b-495b-92e0-08599935cb88)
+![image](https://github.com/user-attachments/assets/8b875b54-1f47-4313-948f-de8b2922e6a4)
 
 ## Installation
 

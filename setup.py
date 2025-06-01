@@ -1,16 +1,20 @@
 from setuptools import setup, find_packages
 
-# Read requirements from requirements.txt
-with open('requirements.txt') as f:
-    requirements = f.read().splitlines()
-
 setup(
     name='nc2',
-    version='0.2.0',
+    version='0.3.0',
     packages=find_packages(),
     include_package_data=True,
     package_data={'nc2': ['Logo3.png']},
-    install_requires=requirements,
+    install_requires=[
+        'numpy',
+        'matplotlib',
+        'netCDF4',
+        'cartopy',
+        'ttkbootstrap',
+        'Pillow',
+        'imageio'
+    ],
     entry_points={
         'console_scripts': [
             'nc2 = nc2.nc2:main',

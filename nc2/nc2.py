@@ -33,6 +33,18 @@ class NC2:
         self.forward_pressed = False
         self.backward_pressed = False
         
+        # Add playback control variables
+        self.is_playing = False
+        self.play_speed = 500  # milliseconds between frames
+        self.play_direction = 1  # 1 for forward, -1 for reverse
+        self.after_id = None  # To store the after() callback ID
+        
+        # Add plot state tracking
+        self.current_plot = None
+        self.current_canvas = None
+        self.current_ax = None
+        self.current_cbar = None
+        
         # Initialize dimension tracking
         self.time = None
         self.time_key = None
@@ -497,13 +509,19 @@ class NC2:
             self.data_display_text.insert(tk.END, f"Error loading file: {str(e)}")
             
     def on_variable_selected(self, event):
+        # Reset plot state when changing variables
+        self.current_plot = None
+        self.current_canvas = None
+        self.current_ax = None
+        self.current_cbar = None
+        plt.close('all')
+        
         selected_variable = self.variable_dropdown.get()
         variable_data = self.dataset.variables[selected_variable]
         
         strip = selected_variable.replace('_',' ').title()
         
         self.plot_button.config(text=f"Plot {strip}")
-        
         
         dims = variable_data.dimensions
 
@@ -513,12 +531,17 @@ class NC2:
             self.calculate_depth()
         else:
             self.depth_dropdown.configure(state='disabled')
+            
         if self.time_key in dims:
             self.time_dropdown.configure(state='readonly')
             self.time_dropdown.set(list(self.time_index_map.keys())[0])
             self.calculate_time()
+            # Start playback automatically if there's a time dimension
+            self.plot_variable()  # This will create the plot and media controls
+            self.start_playback()
         else:
             self.time_dropdown.configure(state='disabled')
+            self.plot_variable()  # Just create a static plot
 
     def calculate_time(self, event=None):
         try:
@@ -773,11 +796,59 @@ class NC2:
                 self.data_display_text.insert(tk.END, f"\nError: Variable {selected_variable} not found in dataset\n")
                 return
                 
-            # Clear previous plot
+            # Close any existing figures to prevent memory leaks
+            plt.close('all')
+                
+            # Clear previous plot and controls
             for widget in self.plot_frame.winfo_children():
                 widget.destroy()
-                
-            # Get plot parameters
+
+            # Create frames for the layout
+            plot_area = tk.Frame(self.plot_frame, bg='grey12')
+            plot_area.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+            bottom_controls = tb.Frame(self.plot_frame)
+            bottom_controls.pack(side=tk.BOTTOM, fill=tk.X, pady=5)
+
+            toolbar_frame = tb.Frame(bottom_controls)
+            toolbar_frame.pack(side=tk.LEFT, fill=tk.X, expand=True)
+            
+            media_controls = tb.Frame(bottom_controls)
+            media_controls.pack(side=tk.RIGHT, fill=tk.X, padx=10)
+
+            # Add media control buttons
+            stop_btn = tb.Button(media_controls, text="⏹", command=self.stop_playback, bootstyle='danger')
+            stop_btn.pack(side=tk.LEFT, padx=2)
+
+            rev_btn = tb.Button(media_controls, text="⏮", command=self.reverse_playback, bootstyle='warning')
+            rev_btn.pack(side=tk.LEFT, padx=2)
+
+            self.play_btn = tb.Button(media_controls, text="⏸" if self.is_playing else "▶", 
+                                    command=self.toggle_playback, bootstyle='success')
+            self.play_btn.pack(side=tk.LEFT, padx=2)
+
+            fwd_btn = tb.Button(media_controls, text="⏭", command=self.forward_playback, bootstyle='warning')
+            fwd_btn.pack(side=tk.LEFT, padx=2)
+
+            # Add separator
+            tb.Separator(media_controls, orient='vertical').pack(side=tk.LEFT, padx=5, fill='y')
+
+            slow_down = tb.Button(media_controls, text="<<", command=self.decrease_speed, bootstyle='info')
+            slow_down.pack(side=tk.LEFT, padx=2)
+
+            self.speed_label = tb.Label(media_controls, text=f"Speed: {self.play_speed}ms")
+            self.speed_label.pack(side=tk.LEFT, padx=5)
+
+            speed_up = tb.Button(media_controls, text=">>", command=self.increase_speed, bootstyle='info')
+            speed_up.pack(side=tk.LEFT, padx=2)
+
+            # Reset plot state
+            self.current_plot = None
+            self.current_canvas = None
+            self.current_ax = None
+            self.current_cbar = None
+
+            # Get plot parameters and create initial plot
             try:
                 selected_colormap = self.colormap_dropdown.get()
                 if self.reverse_colormap_var.get():
@@ -824,9 +895,9 @@ class NC2:
                     linewidth = None
                     
                 try:
-                    shrink = float(self.cbar_shrink_entry.get()) if self.cbar_shrink_entry.get() else 1
+                    shrink = float(self.cbar_shrink_entry.get()) if self.cbar_shrink_entry.get() else 0.6
                 except ValueError:
-                    shrink = 1
+                    shrink = 0.6
                     
                 try:
                     Range = int(self.time_steps_entry.get()) if self.time_steps_entry.get() else None
@@ -850,23 +921,6 @@ class NC2:
                 self.data_display_text.insert(tk.END, f"\nError parsing plot parameters: {str(e)}\n")
                 return
 
-            # Determine time steps to plot
-            if self.gif_checkbox_var.get():
-                time_steps = range(self.time_steps)
-                if Range is not None:
-                    time_steps = range(Range)
-            else:
-                current_index = self.time_dropdown.current()
-                if self.forward_pressed:
-                    current_index += 1
-                    self.time_dropdown.current(current_index)
-                elif self.backward_pressed:
-                    current_index -= 1
-                    self.time_dropdown.current(current_index)
-                time_steps = [current_index]
-                self.forward_pressed = False
-                self.backward_pressed = False
-
             # Get variable data and attributes
             variable_data = self.dataset.variables[selected_variable]
             variable_dims = variable_data.dimensions
@@ -876,9 +930,12 @@ class NC2:
             # Determine if this is a geographic dataset
             is_geographic = (self.lat is not None and self.lon is not None)
             
+            # Get current time step
+            if self.time_key in variable_dims:
+                time_index = self.time_index_map[self.time_dropdown.get()]
+            
             # Handle different dimension structures
             if len(variable_dims) == 1:  # 1D data
-                # Simple line plot for 1D data
                 data = variable_data[:]
                 dim_name = variable_dims[0]
                 dim_values = self.coord_vars[dim_name][:] if dim_name in self.coord_vars else np.arange(len(data))
@@ -892,100 +949,77 @@ class NC2:
                 else:
                     ax.set_title(f"{var_long_name} vs {dim_name}")
                 
-                canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
+                canvas = FigureCanvasTkAgg(fig, master=plot_area)
                 canvas.draw()
                 canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
                 
             elif len(variable_dims) == 2:  # 2D data
-                # Try to determine if this is a spatial slice
                 if is_geographic:
-                    # Assume lat/lon ordering
                     data = variable_data[:]
                     if self.lat.shape[0] == data.shape[0] and self.lon.shape[0] == data.shape[1]:
                         lon, lat = np.meshgrid(self.lon, self.lat)
                     else:
-                        # Non-geographic 2D data
                         dim1 = self.coord_vars[variable_dims[0]][:] if variable_dims[0] in self.coord_vars else np.arange(data.shape[0])
                         dim2 = self.coord_vars[variable_dims[1]][:] if variable_dims[1] in self.coord_vars else np.arange(data.shape[1])
                         lon, lat = np.meshgrid(dim2, dim1)
                 else:
-                    # Non-geographic 2D data
                     data = variable_data[:]
                     dim1 = self.coord_vars[variable_dims[0]][:] if variable_dims[0] in self.coord_vars else np.arange(data.shape[0])
                     dim2 = self.coord_vars[variable_dims[1]][:] if variable_dims[1] in self.coord_vars else np.arange(data.shape[1])
                     lon, lat = np.meshgrid(dim2, dim1)
                 
-                self._plot_2d_data(data, lon, lat, var_units, var_long_name, plot_type, selected_colormap,
-                                 vmin, vmax, levels, colorbar_orientation, shrink, xlabel, ylabel, title,
-                                 is_geographic, selected_projection, manual_extent)
+                canvas = self._plot_2d_data(data, lon, lat, var_units, var_long_name, plot_type, selected_colormap,
+                                          vmin, vmax, levels, colorbar_orientation, shrink, xlabel, ylabel, title,
+                                          is_geographic, selected_projection, manual_extent, plot_area)
                 
             elif len(variable_dims) == 3:  # 3D data (time + 2D)
-                for t in time_steps:
-                    try:
-                        if self.gif_checkbox_var.get():
-                            plt.ioff()
-                            
-                        if self.time is not None:
-                            time_value = nc.num2date(self.time[t], units=self.time_units)
-                        else:
-                            time_value = f"Step {t}"
-                            
-                        data = variable_data[t, :, :]
-                        
-                        if is_geographic:
-                            lon, lat = np.meshgrid(self.lon, self.lat)
-                        else:
-                            dim1 = self.coord_vars[variable_dims[1]][:] if variable_dims[1] in self.coord_vars else np.arange(data.shape[0])
-                            dim2 = self.coord_vars[variable_dims[2]][:] if variable_dims[2] in self.coord_vars else np.arange(data.shape[1])
-                            lon, lat = np.meshgrid(dim2, dim1)
-                            
-                        self._plot_2d_data(data, lon, lat, var_units, var_long_name, plot_type, selected_colormap,
-                                         vmin, vmax, levels, colorbar_orientation, shrink, xlabel, ylabel,
-                                         f"{title or var_long_name} ({time_value})", is_geographic,
-                                         selected_projection, manual_extent)
-                        
-                    except Exception as e:
-                        print(f"Error plotting variable at time step {t}: {e}")
-                        
+                data = variable_data[time_index, :, :]
+                
+                if is_geographic:
+                    lon, lat = np.meshgrid(self.lon, self.lat)
+                else:
+                    dim1 = self.coord_vars[variable_dims[1]][:] if variable_dims[1] in self.coord_vars else np.arange(data.shape[0])
+                    dim2 = self.coord_vars[variable_dims[2]][:] if variable_dims[2] in self.coord_vars else np.arange(data.shape[1])
+                    lon, lat = np.meshgrid(dim2, dim1)
+                
+                time_value = nc.num2date(self.time[time_index], units=self.time_units) if self.time is not None else f"Step {time_index}"
+                plot_title = f"{title or var_long_name} ({time_value})"
+                
+                canvas = self._plot_2d_data(data, lon, lat, var_units, var_long_name, plot_type, selected_colormap,
+                                          vmin, vmax, levels, colorbar_orientation, shrink, xlabel, ylabel, plot_title,
+                                          is_geographic, selected_projection, manual_extent, plot_area)
+                
             elif len(variable_dims) == 4:  # 4D data (time + depth + 2D)
-                selected_depth = self.depth_dropdown.get()
-                depth_index = self.depth_index_map[selected_depth]
+                depth_index = self.depth_index_map[self.depth_dropdown.get()]
+                data = variable_data[time_index, depth_index, :, :]
                 
-                for t in time_steps:
-                    try:
-                        if self.gif_checkbox_var.get():
-                            plt.ioff()
-                            
-                        if self.time is not None:
-                            time_value = nc.num2date(self.time[t], units=self.time_units)
-                        else:
-                            time_value = f"Step {t}"
-                            
-                        data = variable_data[t, depth_index, :, :]
-                        
-                        if is_geographic:
-                            lon, lat = np.meshgrid(self.lon, self.lat)
-                        else:
-                            dim1 = self.coord_vars[variable_dims[2]][:] if variable_dims[2] in self.coord_vars else np.arange(data.shape[0])
-                            dim2 = self.coord_vars[variable_dims[3]][:] if variable_dims[3] in self.coord_vars else np.arange(data.shape[1])
-                            lon, lat = np.meshgrid(dim2, dim1)
-                            
-                        depth_str = f" at {selected_depth}" if selected_depth else f" at depth {depth_index}"
-                        self._plot_2d_data(data, lon, lat, var_units, var_long_name, plot_type, selected_colormap,
-                                         vmin, vmax, levels, colorbar_orientation, shrink, xlabel, ylabel,
-                                         f"{title or var_long_name} ({time_value}){depth_str}", is_geographic,
-                                         selected_projection, manual_extent)
-                        
-                    except Exception as e:
-                        print(f"Error plotting variable at time step {t}: {e}")
-                        
-            else:
-                # Handle other dimension structures
-                print(f"Unsupported dimension structure: {variable_dims}")
-                self.data_display_text.insert(tk.END, f"\nWarning: Unsupported dimension structure: {variable_dims}\n")
+                if is_geographic:
+                    lon, lat = np.meshgrid(self.lon, self.lat)
+                else:
+                    dim1 = self.coord_vars[variable_dims[2]][:] if variable_dims[2] in self.coord_vars else np.arange(data.shape[0])
+                    dim2 = self.coord_vars[variable_dims[3]][:] if variable_dims[3] in self.coord_vars else np.arange(data.shape[1])
+                    lon, lat = np.meshgrid(dim2, dim1)
                 
+                time_value = nc.num2date(self.time[time_index], units=self.time_units) if self.time is not None else f"Step {time_index}"
+                depth_str = f" at {self.depth_dropdown.get()}" if self.depth_dropdown.get() else f" at depth {depth_index}"
+                plot_title = f"{title or var_long_name} ({time_value}){depth_str}"
+                
+                canvas = self._plot_2d_data(data, lon, lat, var_units, var_long_name, plot_type, selected_colormap,
+                                          vmin, vmax, levels, colorbar_orientation, shrink, xlabel, ylabel, plot_title,
+                                          is_geographic, selected_projection, manual_extent, plot_area)
+
+            # Add navigation toolbar if we have a canvas
+            if canvas:
+                toolbar = NavigationToolbar2Tk(canvas, toolbar_frame)
+                toolbar.update()
+                
+                # Connect hover event
+                canvas.mpl_connect('motion_notify_event', self.update_hover_info)
+                        
         except Exception as e:
             self.data_display_text.insert(tk.END, f"\nError in plot_variable: {str(e)}\n")
+            import traceback
+            traceback.print_exc()
             return
 
     def show_gif_in_window(self, gif_path):
@@ -1080,106 +1114,211 @@ class NC2:
 
     def _plot_2d_data(self, data, lon, lat, var_units, var_long_name, plot_type, selected_colormap,
                      vmin, vmax, levels, colorbar_orientation, shrink, xlabel, ylabel, title,
-                     is_geographic, selected_projection, manual_extent):
+                     is_geographic, selected_projection, manual_extent, plot_frame):
         """Helper method to plot 2D data with various options."""
         try:
-            # Create figure and axis
-            if is_geographic:
-                fig = plt.figure(figsize=(10, 8))
-                ax = plt.axes(projection=self.projections[selected_projection])
+            # Only create new figure if we don't have one
+            if self.current_canvas is None:
+                plt.close('all')
                 
-                # Set map extent
-                if manual_extent:
-                    ax.set_extent(manual_extent, crs=ccrs.PlateCarree())
+                # Create figure and axis
+                if is_geographic:
+                    fig = plt.figure(figsize=(10, 8))
+                    ax = plt.axes(projection=self.projections[selected_projection])
+                    
+                    # Set map extent
+                    if manual_extent:
+                        ax.set_extent(manual_extent, crs=ccrs.PlateCarree())
+                    else:
+                        ax.set_extent([lon.min(), lon.max(), lat.min(), lat.max()], crs=ccrs.PlateCarree())
+                    
+                    # Add map features
+                    ax.coastlines(resolution='50m', linewidth=0.5)
+                    ax.add_feature(cfeature.BORDERS, linewidth=0.3)
+                    
+                    # Always add gridlines but control visibility with alpha
+                    alpha = float(self.alpha_entry.get()) if self.alpha_entry.get() and self.gridlines_var.get() else 0.0
+                    gl = ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True, 
+                                    linewidth=0.5, color='gray', alpha=alpha,
+                                    xlocs=np.arange(-180, 181, 60),
+                                    ylocs=np.arange(-90, 91, 30))
+                    gl.top_labels = False
+                    gl.right_labels = False
+                    gl.xlabel_style = {'size': 8}
+                    gl.ylabel_style = {'size': 8}
+                    
+                    if self.ocean_checkbox_var.get():
+                        ax.add_feature(cfeature.OCEAN, alpha=0.5)
+                    if self.land_checkbox_var.get():
+                        ax.add_feature(cfeature.LAND, alpha=0.5)
+                    
+                    # Plot data
+                    if plot_type == 'pcolormesh':
+                        plot = ax.pcolormesh(lon, lat, data, transform=ccrs.PlateCarree(),
+                                           cmap=selected_colormap, vmin=vmin, vmax=vmax)
+                    elif plot_type == 'contour':
+                        plot = ax.contour(lon, lat, data, transform=ccrs.PlateCarree(),
+                                        cmap=selected_colormap, levels=levels, vmin=vmin, vmax=vmax)
+                    elif plot_type == 'contourf':
+                        plot = ax.contourf(lon, lat, data, transform=ccrs.PlateCarree(),
+                                         cmap=selected_colormap, levels=levels, vmin=vmin, vmax=vmax)
+                    elif plot_type == 'imshow':
+                        plot = ax.imshow(data, transform=ccrs.PlateCarree(), cmap=selected_colormap,
+                                       vmin=vmin, vmax=vmax, extent=[lon.min(), lon.max(), lat.min(), lat.max()])
+                    else:
+                        plot = ax.pcolormesh(lon, lat, data, transform=ccrs.PlateCarree(),
+                                           cmap=selected_colormap, vmin=vmin, vmax=vmax)
+                    
+                    # Add colorbar
+                    cbar = plt.colorbar(plot, ax=ax, orientation=colorbar_orientation, shrink=shrink)
+                    cbar.set_label(f"{var_long_name} [{var_units}]")
+                    
+                    # Set labels and title
+                    if xlabel:
+                        ax.text(0.5, -0.1, xlabel, va='bottom', ha='center', 
+                               transform=ax.transAxes, fontsize=10)
+                    if ylabel:
+                        ax.text(-0.1, 0.5, ylabel, va='center', ha='right',
+                               rotation='vertical', transform=ax.transAxes, fontsize=10)
+                    
+                    self.current_ax = ax
+                    self.current_plot = plot
+                    self.current_cbar = cbar
+                    
                 else:
-                    ax.set_extent([lon.min(), lon.max(), lat.min(), lat.max()], crs=ccrs.PlateCarree())
+                    # Non-geographic plot
+                    fig, ax = plt.subplots(figsize=(10, 8))
+                    
+                    if plot_type == 'pcolormesh':
+                        plot = ax.pcolormesh(lon, lat, data, cmap=selected_colormap, vmin=vmin, vmax=vmax)
+                    elif plot_type == 'contour':
+                        plot = ax.contour(lon, lat, data, cmap=selected_colormap, levels=levels, vmin=vmin, vmax=vmax)
+                    elif plot_type == 'contourf':
+                        plot = ax.contourf(lon, lat, data, cmap=selected_colormap, levels=levels, vmin=vmin, vmax=vmax)
+                    elif plot_type == 'imshow':
+                        plot = ax.imshow(data, cmap=selected_colormap, vmin=vmin, vmax=vmax)
+                    else:
+                        plot = ax.pcolormesh(lon, lat, data, cmap=selected_colormap, vmin=vmin, vmax=vmax)
+                    
+                    # Add colorbar
+                    cbar = plt.colorbar(plot, ax=ax, orientation=colorbar_orientation, shrink=shrink)
+                    cbar.set_label(f"{var_long_name} [{var_units}]")
+                    
+                    # Set labels and title
+                    if xlabel:
+                        ax.set_xlabel(xlabel)
+                    if ylabel:
+                        ax.set_ylabel(ylabel)
+                    
+                    self.current_ax = ax
+                    self.current_plot = plot
+                    self.current_cbar = cbar
                 
-                # Add map features
-                if self.gridlines_var.get():
-                    try:
-                        alpha = float(self.alpha_entry.get()) if self.alpha_entry.get() else 0.5
-                    except ValueError:
-                        alpha = 0.5
-                    ax.gridlines(draw_labels=True, alpha=alpha)
-                
-                if self.ocean_checkbox_var.get():
-                    ax.add_feature(cfeature.OCEAN)
-                if self.land_checkbox_var.get():
-                    ax.add_feature(cfeature.LAND)
-                
-                # Plot data
-                if plot_type == 'pcolormesh':
-                    plot = ax.pcolormesh(lon, lat, data, transform=ccrs.PlateCarree(),
-                                       cmap=selected_colormap, vmin=vmin, vmax=vmax)
-                elif plot_type == 'contour':
-                    plot = ax.contour(lon, lat, data, transform=ccrs.PlateCarree(),
-                                    cmap=selected_colormap, levels=levels, vmin=vmin, vmax=vmax)
-                elif plot_type == 'contourf':
-                    plot = ax.contourf(lon, lat, data, transform=ccrs.PlateCarree(),
-                                     cmap=selected_colormap, levels=levels, vmin=vmin, vmax=vmax)
-                elif plot_type == 'imshow':
-                    plot = ax.imshow(data, transform=ccrs.PlateCarree(), cmap=selected_colormap,
-                                   vmin=vmin, vmax=vmax, extent=[lon.min(), lon.max(), lat.min(), lat.max()])
-                else:
-                    plot = ax.pcolormesh(lon, lat, data, transform=ccrs.PlateCarree(),
-                                       cmap=selected_colormap, vmin=vmin, vmax=vmax)
-                
-                # Add colorbar
-                cbar = plt.colorbar(plot, ax=ax, orientation=colorbar_orientation, shrink=shrink)
-                cbar.set_label(f"{var_long_name} [{var_units}]")
-                
-                # Set labels and title
-                if xlabel:
-                    ax.set_xlabel(xlabel)
-                if ylabel:
-                    ax.set_ylabel(ylabel)
-                if title:
-                    ax.set_title(title)
+                # Add the plot to the GUI
+                canvas = FigureCanvasTkAgg(fig, master=plot_frame)
+                canvas.draw()
+                canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+                self.current_canvas = canvas
                 
             else:
-                # Non-geographic plot
-                fig, ax = plt.subplots(figsize=(10, 8))
-                
-                if plot_type == 'pcolormesh':
-                    plot = ax.pcolormesh(lon, lat, data, cmap=selected_colormap, vmin=vmin, vmax=vmax)
-                elif plot_type == 'contour':
-                    plot = ax.contour(lon, lat, data, cmap=selected_colormap, levels=levels, vmin=vmin, vmax=vmax)
-                elif plot_type == 'contourf':
-                    plot = ax.contourf(lon, lat, data, cmap=selected_colormap, levels=levels, vmin=vmin, vmax=vmax)
-                elif plot_type == 'imshow':
-                    plot = ax.imshow(data, cmap=selected_colormap, vmin=vmin, vmax=vmax)
-                else:
-                    plot = ax.pcolormesh(lon, lat, data, cmap=selected_colormap, vmin=vmin, vmax=vmax)
-                
-                # Add colorbar
-                cbar = plt.colorbar(plot, ax=ax, orientation=colorbar_orientation, shrink=shrink)
-                cbar.set_label(f"{var_long_name} [{var_units}]")
-                
-                # Set labels and title
-                if xlabel:
-                    ax.set_xlabel(xlabel)
-                if ylabel:
-                    ax.set_ylabel(ylabel)
-                if title:
-                    ax.set_title(title)
+                # Update existing plot with new data
+                if plot_type in ['pcolormesh', 'imshow']:
+                    self.current_plot.set_array(data.ravel())
+                elif plot_type in ['contour', 'contourf']:
+                    # For contour plots, we need to clear and redraw
+                    self.current_ax.clear()
+                    if is_geographic:
+                        self.current_plot = self.current_ax.contour(lon, lat, data, transform=ccrs.PlateCarree(),
+                                                                  cmap=selected_colormap, levels=levels, vmin=vmin, vmax=vmax)
+                    else:
+                        self.current_plot = self.current_ax.contour(lon, lat, data, cmap=selected_colormap,
+                                                                  levels=levels, vmin=vmin, vmax=vmax)
             
-            # Add the plot to the GUI
-            canvas = FigureCanvasTkAgg(fig, master=self.plot_frame)
-            canvas.draw()
-            canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+            # Always update the title
+            if title:
+                self.current_ax.set_title(title)
+                
+            # Redraw canvas
+            if self.current_canvas:
+                self.current_canvas.draw()
             
-            # Add navigation toolbar
-            toolbar = NavigationToolbar2Tk(canvas, self.plot_frame)
-            toolbar.update()
-            canvas.get_tk_widget().pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-            
-            # Connect hover event
-            canvas.mpl_connect('motion_notify_event', self.update_hover_info)
+            return self.current_canvas
             
         except Exception as e:
             print(f"Error in _plot_2d_data: {e}")
             self.data_display_text.insert(tk.END, f"\nError plotting data: {str(e)}\n")
+            return None
+
+    def toggle_playback(self):
+        if self.is_playing:
+            self.pause_playback()
+        else:
+            self.start_playback()
+
+    def start_playback(self):
+        self.is_playing = True
+        self.play_btn.configure(text="⏸")
+        self.advance_frame()
+
+    def pause_playback(self):
+        self.is_playing = False
+        self.play_btn.configure(text="▶")
+        if self.after_id:
+            self.root.after_cancel(self.after_id)
+            self.after_id = None
+        plt.close('all')  # Clean up any remaining figures
+
+    def stop_playback(self):
+        self.pause_playback()
+        self.time_dropdown.current(0)
+        # Reset plot state
+        self.current_plot = None
+        self.current_canvas = None
+        self.current_ax = None
+        self.current_cbar = None
+        plt.close('all')
+        self.plot_variable()
+
+    def reverse_playback(self):
+        self.play_direction = -1
+        if not self.is_playing:
+            self.start_playback()
+
+    def forward_playback(self):
+        self.play_direction = 1
+        if not self.is_playing:
+            self.start_playback()
+
+    def increase_speed(self):
+        self.play_speed = max(50, self.play_speed - 50)
+        self.speed_label.configure(text=f"Speed: {self.play_speed}ms")
+
+    def decrease_speed(self):
+        self.play_speed = min(2000, self.play_speed + 50)
+        self.speed_label.configure(text=f"Speed: {self.play_speed}ms")
+
+    def advance_frame(self):
+        if not self.is_playing:
             return
+
+        current_index = self.time_dropdown.current()
+        next_index = current_index + self.play_direction
+        
+        # Handle wrapping around
+        if next_index >= len(self.time_dropdown['values']):
+            next_index = 0
+        elif next_index < 0:
+            next_index = len(self.time_dropdown['values']) - 1
+            
+        self.time_dropdown.current(next_index)
+        self.calculate_time()
+        
+        # Schedule the next frame
+        self.after_id = self.root.after(self.play_speed, self.advance_frame)
+
+    def __del__(self):
+        """Cleanup when the object is destroyed"""
+        plt.close('all')  # Clean up any remaining figures
 
 def main():
     parser = argparse.ArgumentParser(description='Run NC² NetCDF viewer.')

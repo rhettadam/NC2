@@ -1,6 +1,6 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: nc2
-Version: 0.2.0
+Version: 0.3.0
 Summary: NC² NetCDF viewer
 Home-page: https://github.com/rhettadam/NC2
 Author: Rhett R. Adam
@@ -11,16 +11,25 @@ Classifier: Operating System :: OS Independent
 Requires-Python: >=3.6
 Description-Content-Type: text/markdown
 License-File: LICENSE
-Requires-Dist: numpy>=1.26.4
-Requires-Dist: ttkbootstrap>=1.10.1
-Requires-Dist: matplotlib>=3.8.0
-Requires-Dist: cartopy>=0.23.0
-Requires-Dist: netCDF4>=1.6.2
-Requires-Dist: imageio>=2.33.1
-Requires-Dist: pillow>=10.2.0
-Requires-Dist: scipy>=1.13.1
+Requires-Dist: numpy
+Requires-Dist: matplotlib
+Requires-Dist: netCDF4
+Requires-Dist: cartopy
+Requires-Dist: ttkbootstrap
+Requires-Dist: Pillow
+Requires-Dist: imageio
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: license-file
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
 
-# Welcome To NC²
+# Welcome To NCÂ²
 
 [![PyPI version](https://badge.fury.io/py/nc2.svg)](https://pypi.org/project/nc2/)
 
@@ -38,37 +47,37 @@ Programs such as NCview and Panoply have become indispensable tools for scientis
 
 Both NCview and Panoply are essential for scientists who need to visualize and analyze their data quickly. However, these tools come with limitations, such as less intuitive user interfaces and a lack of customization options for publication-quality plots.
 
-## What is NC²?
+## What is NCÂ²?
 
 ![Logo4](https://github.com/user-attachments/assets/377cbe6b-5433-42c3-94a3-8f8b73f4ee7f)
 
 
-NC² is a next-generation NetCDF viewer designed to overcome the limitations of traditional tools like NCview and Panoply. Built with modern scientific Python tools such as CartoPy and Matplotlib, NC² offers a versatile and user-friendly platform for visualizing and analyzing NetCDF data. Here’s what NC² brings to the table:
+NCÂ² is a next-generation NetCDF viewer designed to overcome the limitations of traditional tools like NCview and Panoply. Built with CartoPy and Matplotlib, NCÂ² offers a versatile and user-friendly platform for visualizing and analyzing NetCDF data. Hereâ€™s what NCÂ² brings to the table:
 
-    Modern GUI: NC² features a clean and intuitive graphical user interface (GUI) that significantly reduces the learning curve for new users. 
+    Modern GUI: NCÂ² features a clean and intuitive graphical user interface (GUI) that significantly reduces the learning curve for new users. 
 
-    Familiar Tools: NC² is built with familiar scientific Python libraries, including CartoPy for cartographic projections and Matplotlib for plotting. This makes it easy for users who are already familiar with these tools to extend and customize their data visualizations.
+    Familiar Tools: NCÂ² is built with familiar scientific Python libraries, including CartoPy for cartographic projections and Matplotlib for plotting. This makes it easy for users who are already familiar with these tools to extend and customize their data visualizations.
 
-    Publication-Quality Plots: One of the standout features of NC² is its ability to produce publication-quality plots. Users can create highly customizable plots that meet standards required for scientific publications, ensuring that their visualizations are both accurate and aesthetically pleasing.
+    Publication-Quality Plots: One of the standout features of NCÂ² is its ability to produce publication-quality plots. Users can create highly customizable plots that meet standards required for scientific publications, ensuring that their visualizations are both accurate and aesthetically pleasing.
 
-    Versatility: NC² is designed to handle a wide range of NetCDF data types. Whether you are working with atmospheric data, oceanographic measurements, or climate model outputs, NC² provides the tools you need to visualize and analyze your data effectively.
+    Versatility: NCÂ² is designed to handle a wide range of NetCDF data types. Whether you are working with atmospheric data, oceanographic measurements, or climate model outputs, NCÂ² provides the tools you need to visualize and analyze your data effectively.
 
-    Easy Customization: NC² offers a variety of customization options, allowing users to tailor their plots to their specific needs. From adjusting color maps and scales to adding annotations and labels, NC² makes it easy to create detailed and informative visualizations.
+    Easy Customization: NCÂ² offers a variety of customization options, allowing users to tailor their plots to their specific needs. From adjusting color maps and scales to adding annotations and labels, NCÂ² makes it easy to create detailed and informative visualizations.
 
-    Advanced Features: In addition to basic plotting functionalities, NC² provides advanced features such as time series analysis, depth profiling, and GIF generations. These features enable users to gain deeper insights into their data and conduct more comprehensive analyses.
+    Advanced Features: In addition to basic plotting functionalities, NCÂ² provides advanced features such as time series analysis, depth profiling, and GIF generations. These features enable users to gain deeper insights into their data and conduct more comprehensive analyses.
 
-Explore the features and capabilities of NC², and see how it can enhance your research and data analysis workflows.
+Explore the features and capabilities of NCÂ², and see how it can enhance your research and data analysis workflows.
 
 ![Screenshot from 2024-07-23 22-41-41](https://github.com/user-attachments/assets/6a7d6af4-5c5b-495b-92e0-08599935cb88)
 
 ## Installation
 
-To install NC², run the following command:
+To install NCÂ², run the following command:
 
 ```sh
 pip install nc2
 ```
-After installation, you can run NC² from the command line as follows:
+After installation, you can run NCÂ² from the command line as follows:
 
 ```sh
 nc2 path/to/your/file.nc
@@ -84,7 +93,7 @@ VU Undergrad EES
 
 ## License
 
-NC² is distributed under the GPL-3.0 License. See the LICENSE file for details.
+NCÂ² is distributed under the GPL-3.0 License. See the LICENSE file for details.
 
 Copyright (c) 2024 Rhett R. Adam
 

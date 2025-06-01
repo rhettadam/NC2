@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: nc2
-Version: 0.3.0
+Version: 0.3.1
 Summary: NC² NetCDF viewer
 Home-page: https://github.com/rhettadam/NC2
 Author: Rhett R. Adam
@@ -11,13 +11,13 @@ Classifier: Operating System :: OS Independent
 Requires-Python: >=3.6
 Description-Content-Type: text/markdown
 License-File: LICENSE
-Requires-Dist: numpy
-Requires-Dist: matplotlib
-Requires-Dist: netCDF4
-Requires-Dist: cartopy
-Requires-Dist: ttkbootstrap
-Requires-Dist: Pillow
-Requires-Dist: imageio
+Requires-Dist: numpy>=1.26.4
+Requires-Dist: matplotlib>=3.8.0
+Requires-Dist: netCDF4>=1.6.2
+Requires-Dist: cartopy>=0.23.0
+Requires-Dist: ttkbootstrap>=1.10.1
+Requires-Dist: Pillow>=10.2.0
+Requires-Dist: imageio>=2.33.1
 Dynamic: author
 Dynamic: author-email
 Dynamic: classifier

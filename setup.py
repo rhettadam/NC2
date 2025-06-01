@@ -2,18 +2,18 @@ from setuptools import setup, find_packages
 
 setup(
     name='nc2',
-    version='0.3.0',
+    version='0.3.1',
     packages=find_packages(),
     include_package_data=True,
     package_data={'nc2': ['Logo3.png']},
     install_requires=[
-        'numpy',
-        'matplotlib',
-        'netCDF4',
-        'cartopy',
-        'ttkbootstrap',
-        'Pillow',
-        'imageio'
+        'numpy>=1.26.4',
+        'matplotlib>=3.8.0',
+        'netCDF4>=1.6.2',
+        'cartopy>=0.23.0',
+        'ttkbootstrap>=1.10.1',
+        'Pillow>=10.2.0',
+        'imageio>=2.33.1'
     ],
     entry_points={
         'console_scripts': [

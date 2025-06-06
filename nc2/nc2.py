@@ -76,6 +76,12 @@ class NC2:
         self.dim_vars = {}
         self.dim_info = {}
         
+        # Add vertical slice tracking
+        self.slice_type = tk.StringVar(value="lon_depth")  # Default to longitude-depth slice
+        self.slice_position = 0  # Default slice position
+        self.slice_slider = None
+        self.slice_value_label = None
+        
         logo_path = importlib.resources.files('nc2').joinpath('Logo3.png')
         self.logo = ImageTk.PhotoImage(file=str(logo_path))
         
@@ -301,17 +307,29 @@ class NC2:
         self.theme_dropdown.config(menu=self.theme_menu)
         self.theme_dropdown.pack(pady=5, fill=tk.X)
 
-        # Central plot area with data display at bottom
-        central_frame = tk.Frame(main_container)
-        central_frame.grid(row=0, column=1, sticky='nsew')
+        # Create notebook for tabs
+        self.notebook = ttk.Notebook(main_container)
+        self.notebook.grid(row=0, column=1, sticky='nsew')
+        
+        # Create main tab
+        main_tab = tk.Frame(self.notebook)
+        self.notebook.add(main_tab, text='Main View')
+        
+        # Create vertical slice tab
+        slice_tab = tk.Frame(self.notebook)
+        self.notebook.add(slice_tab, text='Vertical Slices')
+        
+        # Central plot area with data display at bottom for main tab
+        central_frame = tk.Frame(main_tab)
+        central_frame.pack(fill=tk.BOTH, expand=True)
         central_frame.grid_rowconfigure(0, weight=1)  # Plot area expands
         central_frame.grid_columnconfigure(0, weight=1)  # Plot area expands horizontally
 
-        # Plot frame
+        # Plot frame for main tab
         self.plot_frame = tk.Frame(central_frame, bg='grey12', padx=10, pady=10)
         self.plot_frame.grid(row=0, column=0, sticky='nsew')
 
-        # Data display frame at bottom
+        # Data display frame at bottom for main tab
         self.data_display_frame = tk.Frame(central_frame, bg='grey14', padx=10, pady=5, height=150)
         self.data_display_frame.grid(row=1, column=0, sticky='ew')
         self.data_display_frame.grid_propagate(False)  # Keep fixed height
@@ -378,6 +396,75 @@ class NC2:
         self.land_checkbox = tb.Checkbutton(checkboxes_frame, text='Land', variable=self.land_checkbox_var, 
                                           bootstyle='danger, round-toggle', command=self.plot_variable)
         self.land_checkbox.pack(side=tk.LEFT, pady=5, padx=2)
+
+        # Add vertical slice controls to slice tab
+        slice_control_frame = tk.Frame(slice_tab, padx=10, pady=10)
+        slice_control_frame.pack(side=tk.LEFT, fill=tk.Y)
+        
+        # Create central frame for vertical slice plot and data display
+        slice_central_frame = tk.Frame(slice_tab)
+        slice_central_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        slice_central_frame.grid_rowconfigure(0, weight=1)  # Plot area expands
+        slice_central_frame.grid_columnconfigure(0, weight=1)  # Plot area expands horizontally
+        
+        # Slice type selection
+        slice_type_label = tb.Label(slice_control_frame, text="Slice Type:", font=("Helvetica", 12))
+        slice_type_label.pack(pady=5)
+        
+        slice_type_frame = tb.Frame(slice_control_frame)
+        slice_type_frame.pack(fill=tk.X, pady=5)
+        
+        lon_depth_radio = tb.Radiobutton(slice_type_frame, text="Longitude-Depth", 
+                                       variable=self.slice_type, value="lon_depth",
+                                       command=self.update_slice_controls, bootstyle='info-toolbutton')
+        lon_depth_radio.pack(side=tk.LEFT, padx=5)
+        
+        lat_depth_radio = tb.Radiobutton(slice_type_frame, text="Latitude-Depth", 
+                                       variable=self.slice_type, value="lat_depth",
+                                       command=self.update_slice_controls, bootstyle='info-toolbutton')
+        lat_depth_radio.pack(side=tk.LEFT, padx=5)
+        
+        # Slice position slider
+        self.slice_position_label = tb.Label(slice_control_frame, text="Slice Position:", font=("Helvetica", 12))
+        self.slice_position_label.pack(pady=5)
+        
+        self.slice_value_label = tb.Label(slice_control_frame, text="0", bootstyle='info')
+        self.slice_value_label.pack(pady=5)
+        
+        self.slice_slider = tb.Scale(slice_control_frame, bootstyle='info', orient='horizontal', length=180)
+        self.slice_slider.pack(fill=tk.X, pady=5)
+        self.slice_slider.bind("<ButtonRelease-1>", self.plot_vertical_slice)
+        self.slice_slider.bind("<B1-Motion>", self.update_slice_label)
+        
+        # Time slider for vertical slice
+        self.slice_time_label = tb.Label(slice_control_frame, text="Time Step:", font=("Helvetica", 12))
+        self.slice_time_label.pack(pady=5)
+        
+        self.slice_time_value_label = tb.Label(slice_control_frame, text="0", bootstyle='info')
+        self.slice_time_value_label.pack(pady=5)
+        
+        self.slice_time_slider = tb.Scale(slice_control_frame, bootstyle='info', orient='horizontal', length=180)
+        self.slice_time_slider.pack(fill=tk.X, pady=5)
+        self.slice_time_slider.bind("<ButtonRelease-1>", self.plot_vertical_slice)
+        self.slice_time_slider.bind("<B1-Motion>", self.update_slice_time_label)
+        
+        # Plot controls for vertical slice
+        self.slice_plot_button = tb.Button(slice_control_frame, text="Plot Slice", 
+                                         command=self.plot_vertical_slice, bootstyle='info')
+        self.slice_plot_button.pack(pady=10, fill=tk.X)
+        
+        # Create plot frame for vertical slice
+        self.slice_plot_frame = tk.Frame(slice_central_frame, bg='grey12', padx=10, pady=10)
+        self.slice_plot_frame.grid(row=0, column=0, sticky='nsew')
+        
+        # Create data display frame for vertical slice
+        self.slice_data_display_frame = tk.Frame(slice_central_frame, bg='grey14', padx=10, pady=5, height=150)
+        self.slice_data_display_frame.grid(row=1, column=0, sticky='ew')
+        self.slice_data_display_frame.grid_propagate(False)  # Keep fixed height
+        
+        self.slice_data_display_text = tk.Text(self.slice_data_display_frame, bg='grey12', fg='lime', 
+                                             height=8, wrap=tk.WORD, font=("Helvetica", 10))
+        self.slice_data_display_text.pack(fill=tk.BOTH, expand=True)
 
 # ********** Logic ********** #
     
@@ -1650,6 +1737,183 @@ class NC2:
         
         # Create the GIF
         self.save_gif()
+
+    def update_slice_controls(self):
+        """Update slice controls based on selected slice type"""
+        if not hasattr(self, 'dataset') or self.dataset is None:
+            return
+            
+        slice_type = self.slice_type.get()
+        
+        # Update slider range based on slice type
+        if slice_type == "lon_depth":
+            if self.lon is not None:
+                self.slice_slider.configure(from_=0, to=len(self.lon)-1, state='normal')
+                self.slice_position_label.config(text="Longitude Index:")
+        else:  # lat_depth
+            if self.lat is not None:
+                self.slice_slider.configure(from_=0, to=len(self.lat)-1, state='normal')
+                self.slice_position_label.config(text="Latitude Index:")
+                
+        # Update time slider
+        if self.time is not None:
+            self.slice_time_slider.configure(from_=0, to=self.time_steps-1, state='normal')
+            
+        self.plot_vertical_slice()
+        
+    def update_slice_label(self, event=None):
+        """Update the slice position label during slider movement"""
+        slice_type = self.slice_type.get()
+        position = int(self.slice_slider.get())
+        
+        if slice_type == "lon_depth" and self.lon is not None:
+            value = self.lon[position]
+            self.slice_value_label.config(text=f"{value:.2f}°")
+        elif slice_type == "lat_depth" and self.lat is not None:
+            value = self.lat[position]
+            self.slice_value_label.config(text=f"{value:.2f}°")
+            
+    def update_slice_time_label(self, event=None):
+        """Update the time value label during slider movement"""
+        if hasattr(self, 'time') and self.time is not None:
+            try:
+                time_index = int(self.slice_time_slider.get())
+                time_value = nc.num2date(self.time[time_index], units=self.time_units)
+                self.slice_time_value_label.config(text=str(time_value))
+            except Exception as e:
+                self.slice_time_value_label.config(text="Error")
+                
+    def plot_vertical_slice(self, event=None):
+        """Plot vertical slice of the data"""
+        try:
+            if not hasattr(self, 'dataset') or self.dataset is None:
+                self.slice_data_display_text.insert(tk.END, "\nError: No dataset loaded\n")
+                return
+                
+            selected_variable = self.variable_dropdown.get()
+            if not selected_variable:
+                self.slice_data_display_text.insert(tk.END, "\nError: No variable selected\n")
+                return
+                
+            if selected_variable not in self.dataset.variables:
+                self.slice_data_display_text.insert(tk.END, f"\nError: Variable {selected_variable} not found in dataset\n")
+                return
+                
+            # Close any existing figures
+            plt.close('all')
+            
+            # Clear previous plot
+            for widget in self.slice_plot_frame.winfo_children():
+                widget.destroy()
+                
+            # Create figure
+            fig = plt.figure(figsize=(10, 6), constrained_layout=True)
+            
+            # Get variable data
+            variable_data = self.dataset.variables[selected_variable]
+            time_index = int(self.slice_time_slider.get())
+            slice_index = int(self.slice_slider.get())
+            
+            # Get the data slice
+            if self.slice_type.get() == "lon_depth":
+                if len(variable_data.dimensions) == 4:  # time, depth, lat, lon
+                    data = variable_data[time_index, :, :, slice_index]
+                    y_coords = self.depth
+                    x_coords = self.lat
+                    x_label = "Latitude"
+                    y_label = f"Depth ({self.depth_units})"
+                    title = f"{variable_data.long_name if hasattr(variable_data, 'long_name') else selected_variable} at Longitude {self.lon[slice_index]:.2f}°"
+                else:
+                    self.slice_data_display_text.insert(tk.END, "\nError: Variable does not have required dimensions\n")
+                    return
+            else:  # lat_depth
+                if len(variable_data.dimensions) == 4:  # time, depth, lat, lon
+                    data = variable_data[time_index, :, slice_index, :]
+                    y_coords = self.depth
+                    x_coords = self.lon
+                    x_label = "Longitude"
+                    y_label = f"Depth ({self.depth_units})"
+                    title = f"{variable_data.long_name if hasattr(variable_data, 'long_name') else selected_variable} at Latitude {self.lat[slice_index]:.2f}°"
+                else:
+                    self.slice_data_display_text.insert(tk.END, "\nError: Variable does not have required dimensions\n")
+                    return
+                    
+            # Create plot
+            ax = fig.add_subplot(111)
+            
+            # Get vmin/vmax values
+            try:
+                vmin = float(self.vmin_entry.get()) if self.vmin_entry.get() and self.vmin_entry.get() != "V-Min" else None
+            except ValueError:
+                vmin = None
+                
+            try:
+                vmax = float(self.vmax_entry.get()) if self.vmax_entry.get() and self.vmax_entry.get() != "V-Max" else None
+            except ValueError:
+                vmax = None
+                
+            # Get levels value
+            try:
+                levels = int(self.levels_entry.get()) if self.levels_entry.get() and self.levels_entry.get() != "Levels" else None
+            except ValueError:
+                levels = None
+                
+            # Plot the data
+            if self.plot_type_dropdown.get() == 'pcolormesh':
+                plot = ax.pcolormesh(x_coords, y_coords, data,
+                                   cmap=self.colormap_dropdown.get() + '_r' if self.reverse_colormap_var.get() else self.colormap_dropdown.get(),
+                                   vmin=vmin, vmax=vmax)
+            elif self.plot_type_dropdown.get() == 'contour':
+                plot = ax.contour(x_coords, y_coords, data,
+                                cmap=self.colormap_dropdown.get() + '_r' if self.reverse_colormap_var.get() else self.colormap_dropdown.get(),
+                                levels=levels, vmin=vmin, vmax=vmax)
+            else:  # contourf
+                plot = ax.contourf(x_coords, y_coords, data,
+                                 cmap=self.colormap_dropdown.get() + '_r' if self.reverse_colormap_var.get() else self.colormap_dropdown.get(),
+                                 levels=levels, vmin=vmin, vmax=vmax)
+                                 
+            # Add colorbar
+            try:
+                shrink = float(self.cbar_shrink_entry.get()) if self.cbar_shrink_entry.get() and self.cbar_shrink_entry.get() != "Shrink (0-1)" else 1.0
+            except ValueError:
+                shrink = 1.0
+                
+            cbar = plt.colorbar(plot, ax=ax, orientation=self.colorbar_orientation_dropdown.get(), shrink=shrink)
+            cbar.set_label(f"{variable_data.long_name if hasattr(variable_data, 'long_name') else selected_variable} [{variable_data.units if hasattr(variable_data, 'units') else ''}]")
+            
+            # Set labels and title
+            ax.set_xlabel(x_label)
+            ax.set_ylabel(y_label)
+            
+            # Add time to title
+            time_value = nc.num2date(self.time[time_index], units=self.time_units)
+            ax.set_title(f"{title} at {time_value}")
+            
+            # Invert y-axis for depth
+            ax.invert_yaxis()
+            
+            # Create canvas and add to GUI
+            canvas = FigureCanvasTkAgg(fig, master=self.slice_plot_frame)
+            canvas.draw()
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+            
+            # Add toolbar
+            toolbar_frame = tk.Frame(self.slice_plot_frame)
+            toolbar_frame.pack(fill=tk.X)
+            toolbar = NavigationToolbar2Tk(canvas, toolbar_frame)
+            toolbar.update()
+            
+            # Store references
+            self.current_canvas = canvas
+            self.current_ax = ax
+            self.current_plot = plot
+            self.current_cbar = cbar
+            
+        except Exception as e:
+            self.slice_data_display_text.insert(tk.END, f"\nError in plot_vertical_slice: {str(e)}\n")
+            import traceback
+            traceback.print_exc()
+            return
 
 def main():
     parser = argparse.ArgumentParser(description='Run NC² NetCDF viewer.')

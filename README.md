@@ -1,10 +1,19 @@
+<p align="center">
+  <img src="docs/logo.png" alt="NC2" width="140">
+</p>
 
+<p align="center">
+  <a href="https://pypi.org/project/nc2/"><img src="https://img.shields.io/pypi/v/nc2" alt="PyPI"></a>
+  <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License"></a>
+</p>
 
+<p align="center">
 Lightweight NetCDF viewer with detached plot windows, GIF export, and full matplotlib customization.
+</p>
 
-
-
-
+<p align="center">
+  <img src="docs/gui.png" alt="NC2 interface" width="800">
+</p>
 
 ## Install
 
@@ -39,40 +48,17 @@ python -m nc2 data.nc4       # alternate invocation
 - **Batch export** -- export all frames as individual images
 - **Performance** -- LRU slice cache, lazy coordinate loading, threaded I/O
 
-## Architecture
-
-```
-nc2/
-  __main__.py      Entry point
-  app.py           Control panel (tkinter + ttkbootstrap)
-  dataset.py       NetCDF wrapper, dimension classification
-  slicer.py        Data extraction with caching
-  cache.py         Thread-safe LRU cache
-  playback.py      Animation controller
-  export.py        GIF/image/batch export
-  constants.py     Configuration defaults, heuristics
-  widgets.py       Custom widgets and dialogs
-  plots/
-    config.py      PlotConfig dataclass
-    manager.py     Window lifecycle management
-    spatial.py     2D map/field plots
-    section.py     Cross-section plots
-    series.py      Timeseries and depth profiles
-```
-
 ## Dependencies
 
-
-| Package      | Purpose                      |
-| ------------ | ---------------------------- |
-| numpy        | Array operations             |
-| matplotlib   | Plotting engine              |
-| netCDF4      | File I/O                     |
-| cartopy      | Map projections and features |
-| ttkbootstrap | GUI styling                  |
-| Pillow       | Image handling               |
-| imageio      | GIF assembly                 |
-
+| Package | Purpose |
+|---------|---------|
+| numpy | Array operations |
+| matplotlib | Plotting engine |
+| netCDF4 | File I/O |
+| cartopy | Map projections and features |
+| ttkbootstrap | GUI styling |
+| Pillow | Image handling |
+| imageio | GIF assembly |
 
 ## License
 

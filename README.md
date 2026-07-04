@@ -1,20 +1,10 @@
-<p align="center">
-  <img src="docs/logo.png" alt="NC2" width="140">
-</p>
 
-<p align="center">
-Fast, versatile NetCDF viewer built for scientists.<br>
-Replaces ncview and Panoply with a lightweight, offline-capable tool that runs anywhere Python does.
-</p>
 
-<p align="center">
-  <a href="https://pypi.org/project/nc2/"><img src="https://img.shields.io/pypi/v/nc2" alt="PyPI"></a>
-  <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License"></a>
-</p>
+Lightweight NetCDF viewer with detached plot windows, GIF export, and full matplotlib customization.
 
-<p align="center">
-  <img src="docs/gui.png" alt="NC2 interface" width="800">
-</p>
+
+
+
 
 ## Install
 
@@ -72,15 +62,17 @@ nc2/
 
 ## Dependencies
 
-| Package | Purpose |
-|---------|---------|
-| numpy | Array operations |
-| matplotlib | Plotting engine |
-| netCDF4 | File I/O |
-| cartopy | Map projections and features |
-| ttkbootstrap | GUI styling |
-| Pillow | Image handling |
-| imageio | GIF assembly |
+
+| Package      | Purpose                      |
+| ------------ | ---------------------------- |
+| numpy        | Array operations             |
+| matplotlib   | Plotting engine              |
+| netCDF4      | File I/O                     |
+| cartopy      | Map projections and features |
+| ttkbootstrap | GUI styling                  |
+| Pillow       | Image handling               |
+| imageio      | GIF assembly                 |
+
 
 ## License
 

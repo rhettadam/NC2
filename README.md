@@ -1,68 +1,87 @@
-# Welcome To NC²
+<p align="center">
+  <img src="docs/logo.png" alt="NC2" width="140">
+</p>
 
-[![PyPI version](https://badge.fury.io/py/nc2.svg)](https://pypi.org/project/nc2/)
+<p align="center">
+Fast, versatile NetCDF viewer built for scientists.<br>
+Replaces ncview and Panoply with a lightweight, offline-capable tool that runs anywhere Python does.
+</p>
 
-## What are NetCDF Files?
+<p align="center">
+  <a href="https://pypi.org/project/nc2/"><img src="https://img.shields.io/pypi/v/nc2" alt="PyPI"></a>
+  <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License"></a>
+</p>
 
-NetCDF (Network Common Data Form) is a set of software libraries and self-describing, machine-independent data formats that support the creation, access, and sharing of array-oriented scientific data. NetCDF files are widely used in climate science, meteorology, oceanography, and other fields to store and distribute large datasets. These files are valuable for their ability to store multi-dimensional data (such as temperature, humidity, and wind speed) efficiently, making them essential for researchers and scientists dealing with complex environmental data.
+<p align="center">
+  <img src="docs/gui.png" alt="NC2 interface" width="800">
+</p>
 
-## NCview and Panoply
+## Install
 
-Programs such as NCview and Panoply have become indispensable tools for scientists working with NetCDF files.
-
-    NCview: NCview is a simple yet powerful visual browser for NetCDF files. It allows users to quickly view the data stored in these files through various plotting options. NCview is particularly useful for scientists who need to quickly check the contents of their datasets.
-
-    Panoply: Panoply, developed by NASA, is another powerful tool that provides more advanced features than NCview. It allows users to visualize georeferenced and other arrays from NetCDF, HDF, and GRIB datasets. Panoply offers a range of plotting options, including latitude-longitude, latitude-vertical, and time-latitude plots, making it a versatile tool for in-depth data analysis.
-
-Both NCview and Panoply are essential for scientists who need to visualize and analyze their data quickly. However, these tools come with limitations, such as less intuitive user interfaces and a lack of customization options for publication-quality plots.
-
-## What is NC²?
-
-![Logo4](https://github.com/user-attachments/assets/377cbe6b-5433-42c3-94a3-8f8b73f4ee7f)
-
-
-NC² is a next-generation NetCDF viewer designed to overcome the limitations of traditional tools like NCview and Panoply. Built with CartoPy and Matplotlib, NC² offers a versatile and user-friendly platform for visualizing and analyzing NetCDF data. Here’s what NC² brings to the table:
-
-    Modern GUI: NC² features a clean and intuitive graphical user interface (GUI) that significantly reduces the learning curve for new users. 
-
-    Familiar Tools: NC² is built with familiar scientific Python libraries, including CartoPy for cartographic projections and Matplotlib for plotting. This makes it easy for users who are already familiar with these tools to extend and customize their data visualizations.
-
-    Publication-Quality Plots: One of the standout features of NC² is its ability to produce publication-quality plots. Users can create highly customizable plots that meet standards required for scientific publications, ensuring that their visualizations are both accurate and aesthetically pleasing.
-
-    Versatility: NC² is designed to handle a wide range of NetCDF data types. Whether you are working with atmospheric data, oceanographic measurements, or climate model outputs, NC² provides the tools you need to visualize and analyze your data effectively.
-
-    Easy Customization: NC² offers a variety of customization options, allowing users to tailor their plots to their specific needs. From adjusting color maps and scales to adding annotations and labels, NC² makes it easy to create detailed and informative visualizations.
-
-    Advanced Features: In addition to basic plotting functionalities, NC² provides advanced features such as time series analysis, depth profiling, and GIF generations. These features enable users to gain deeper insights into their data and conduct more comprehensive analyses.
-
-Explore the features and capabilities of NC², and see how it can enhance your research and data analysis workflows.
-
-![ScreenRecording2025-06-06124348-ezgif com-video-to-gif-converter](https://github.com/user-attachments/assets/f795717d-457c-425e-a9e1-f0f37a34620c)
-
-## Installation
-
-To install NC², run the following command:
-
-```sh
+```
 pip install nc2
 ```
-After installation, you can run NC² from the command line as follows:
 
-```sh
-nc2 path/to/your/file.nc
+Requires Python 3.8+. Cartopy is needed for map projections (optional for non-geographic data).
+
+## Usage
+
+```
+nc2                          # launch empty, open file from menu
+nc2 data.nc                  # open a file directly
+python -m nc2 data.nc4       # alternate invocation
 ```
 
-## Contact Me!
+## Features
 
-rhettadambusiness@gmail.com
+- **Spatial plots** -- pcolormesh, contourf, contour, imshow, quiver, streamplot
+- **Vertical sections** -- depth vs. lat/lon cross-sections
+- **Timeseries** -- click any point to extract temporal evolution
+- **Depth profiles** -- vertical structure at a point
+- **GIF export** -- animate over time with configurable FPS and frame range
+- **Full matplotlib API** -- normalization (log, symlog, power), interpolation, alpha, colorbar controls, contour styling, quiver/streamplot parameters
+- **182 colormaps** -- every registered matplotlib colormap at runtime
+- **Cartopy projections** -- PlateCarree, Mercator, Robinson, Orthographic, and more
+- **Flexible dimensions** -- auto-detects time/depth/lat/lon, manual override for non-standard files
+- **Extra dimensions** -- unassigned dims get their own sliders automatically
+- **Playback** -- animate through time with loop/bounce/once modes and speed control
+- **Detached windows** -- each plot is an independent matplotlib window with toolbar
+- **Batch export** -- export all frames as individual images
+- **Performance** -- LRU slice cache, lazy coordinate loading, threaded I/O
 
-Rhett R. Adam 7/25/24
+## Architecture
 
-VU Undergrad EES
+```
+nc2/
+  __main__.py      Entry point
+  app.py           Control panel (tkinter + ttkbootstrap)
+  dataset.py       NetCDF wrapper, dimension classification
+  slicer.py        Data extraction with caching
+  cache.py         Thread-safe LRU cache
+  playback.py      Animation controller
+  export.py        GIF/image/batch export
+  constants.py     Configuration defaults, heuristics
+  widgets.py       Custom widgets and dialogs
+  plots/
+    config.py      PlotConfig dataclass
+    manager.py     Window lifecycle management
+    spatial.py     2D map/field plots
+    section.py     Cross-section plots
+    series.py      Timeseries and depth profiles
+```
+
+## Dependencies
+
+| Package | Purpose |
+|---------|---------|
+| numpy | Array operations |
+| matplotlib | Plotting engine |
+| netCDF4 | File I/O |
+| cartopy | Map projections and features |
+| ttkbootstrap | GUI styling |
+| Pillow | Image handling |
+| imageio | GIF assembly |
 
 ## License
 
-NC² is distributed under the GPL-3.0 License. See the LICENSE file for details.
-
-Copyright (c) 2024 Rhett R. Adam
-
+GPL-3.0. Copyright (c) 2024 Rhett R. Adam.

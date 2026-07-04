@@ -1,2 +1,2 @@
 [console_scripts]
-nc2 = nc2.nc2:main
+nc2 = nc2.__main__:main

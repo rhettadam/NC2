@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NC2</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background: #1a1a1a;
+            color: #d4d4d4;
+            line-height: 1.6;
+            padding: 60px 24px;
+        }
+        .wrap { max-width: 720px; margin: 0 auto; }
+        a { color: #6ba3d6; }
+        header { text-align: center; margin-bottom: 40px; }
+        header img { width: 100px; }
+        header p { color: #888; margin-top: 10px; }
+        img.screenshot {
+            width: 100%;
+            border-radius: 4px;
+            margin: 0 0 40px;
+        }
+        h2 { font-size: 1rem; color: #999; margin: 32px 0 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+        code {
+            background: #252525;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.9rem;
+        }
+        pre {
+            background: #252525;
+            padding: 14px 18px;
+            border-radius: 4px;
+            margin-bottom: 32px;
+            overflow-x: auto;
+            font-size: 0.88rem;
+        }
+        ul { list-style: none; margin-bottom: 32px; }
+        ul li { padding: 3px 0; color: #aaa; }
+        ul li strong { color: #d4d4d4; }
+        footer { margin-top: 60px; color: #555; font-size: 0.8rem; text-align: center; }
+    </style>
+</head>
+<body>
+<div class="wrap">
+
+    <header>
+        <img src="logo.png" alt="NC2">
+        <p>NetCDF viewer for scientists.</p>
+    </header>
+
+    <img class="screenshot" src="gui.png" alt="NC2">
+
+    <h2>Install</h2>
+    <pre>pip install nc2</pre>
+
+    <h2>Run</h2>
+    <pre>nc2 yourfile.nc</pre>
+
+    <h2>Features</h2>
+    <ul>
+        <li><strong>Spatial plots</strong> -- pcolormesh, contourf, contour, imshow, quiver, streamplot</li>
+        <li><strong>Cross-sections</strong> -- vertical and horizontal slices</li>
+        <li><strong>Timeseries</strong> -- click a point to extract</li>
+        <li><strong>Depth profiles</strong> -- vertical structure at any point</li>
+        <li><strong>GIF export</strong> -- animate over time</li>
+        <li><strong>All colormaps</strong> -- every matplotlib colormap</li>
+        <li><strong>Projections</strong> -- cartopy map projections</li>
+        <li><strong>Playback</strong> -- loop, bounce, speed control</li>
+        <li><strong>Flexible</strong> -- auto-detect dimensions or override manually</li>
+    </ul>
+
+    <h2>Formats</h2>
+    <p style="color:#888; margin-bottom:32px;">
+        <code>.nc</code> <code>.nc4</code> <code>.cdf</code> <code>.netcdf</code> <code>.hdf5</code> <code>.h5</code>
+    </p>
+
+    <h2>Requirements</h2>
+    <p style="color:#888;">Python 3.8+ &middot; numpy &middot; matplotlib &middot; netCDF4 &middot; cartopy &middot; ttkbootstrap &middot; Pillow &middot; imageio</p>
+
+    <footer>GPL-3.0 &middot; <a href="https://github.com/rhettadam/NC2">GitHub</a></footer>
+
+</div>
+</body>
+</html>

@@ -6,6 +6,7 @@ and depth profiles from the dataset, routing through the cache layer.
 import numpy as np
 
 from .cache import SliceCache
+from .plots.geo import ensure_increasing_y
 
 
 class Slicer:
@@ -25,29 +26,120 @@ class Slicer:
     def get_spatial_slice(self, var_name, time_idx=None, depth_idx=None,
                           extra_indices=None):
         """
-        Extract a 2D (lat x lon) slice for the given variable.
-
-        Args:
-            extra_indices: optional dict of dim_name -> index for unassigned
-                           dimensions. These get fixed at the given index.
+        Extract a 2D (y x x) slice for the given variable.
 
         Returns:
-            data: 2D numpy masked array
-            lat: 1D latitude coordinate
-            lon: 1D longitude coordinate
+            data: 2D numpy masked array oriented (y, x)
+            lat: 1D or 2D Y/latitude coordinate
+            lon: 1D or 2D X/longitude coordinate
         """
         extra_key = tuple(sorted((extra_indices or {}).items()))
         key = (var_name, "spatial", time_idx, depth_idx, extra_key)
         cached = self.cache.get(key)
         if cached is not None:
-            return cached, self.ds.lat, self.ds.lon
+            return cached
 
         var = self.ds.get_variable(var_name)
-        dim_map = self.ds.get_var_dim_indices(var_name)
+        dim_map = self.ds.infer_var_axes(var_name)
         data = self._extract_2d(var, dim_map, time_idx, depth_idx, extra_indices)
 
-        self.cache.put(key, data)
-        return data, self.ds.lat, self.ds.lon
+        lat, lon = self.ds.get_spatial_coords(var_name)
+        if lat is None or lon is None:
+            # Absolute fallback: index grids matching data shape
+            ny, nx = data.shape[:2]
+            lat = np.arange(ny)
+            lon = np.arange(nx)
+
+        # 2D CF coords: slice to match data if they share leading dims
+        lat, lon = self._align_2d_coords(lat, lon, data.shape)
+
+        data, lat, lon = ensure_increasing_y(data, lat, lon)
+
+        result = (data, lat, lon)
+        self.cache.put(key, result)
+        return result
+
+    def _align_2d_coords(self, lat, lon, data_shape):
+        """Ensure 2D lat/lon match the 2D data shape; pass 1D through."""
+        lat = np.asarray(lat)
+        lon = np.asarray(lon)
+        ny, nx = data_shape[0], data_shape[1]
+
+        if lat.ndim == 2 and lon.ndim == 2:
+            if lat.shape == (ny, nx) and lon.shape == (ny, nx):
+                return lat, lon
+            # Try transpose if axes were swapped relative to data
+            if lat.shape == (nx, ny) and lon.shape == (nx, ny):
+                return lat.T, lon.T
+            # If larger (e.g. includes time), take last 2 dims matching
+            if lat.ndim == 2 and lat.shape[-2:] == (ny, nx):
+                return lat, lon
+
+        if lat.ndim == 1 and lon.ndim == 1:
+            # Length mismatch after orientation: rebuild indices
+            if lat.size != ny:
+                lat = np.arange(ny)
+            if lon.size != nx:
+                lon = np.arange(nx)
+
+        return lat, lon
+
+    # ------------------------------------------------------------------
+    # 1D line series (entire variable along its only free axis)
+    # ------------------------------------------------------------------
+
+    def get_1d_series(self, var_name, extra_indices=None):
+        """
+        Extract a 1D series for plotting line data.
+
+        Returns:
+            data: 1D masked array
+            coord: 1D coordinate (or indices)
+            coord_name: dimension name for the X axis
+        """
+        var = self.ds.get_variable(var_name)
+        dim_map = self.ds.infer_var_axes(var_name)
+        group = self.ds._var_group(var_name) if var_name in self.ds._var_index else self.ds._ds
+
+        idx = [slice(None)] * var.ndim
+        free_axis = None
+
+        for i, dim_name in enumerate(var.dimensions):
+            role = None
+            for r, ax in dim_map.items():
+                if ax == i:
+                    role = r
+                    break
+
+            if role in ("time", "depth", "lat", "lon") and var.shape[i] > 1 and free_axis is None:
+                # Keep the longest / first multi-valued axis free for 1D plot
+                if free_axis is None:
+                    free_axis = i
+                    continue
+
+            if var.shape[i] == 1:
+                idx[i] = 0
+            elif extra_indices and dim_name in extra_indices:
+                idx[i] = extra_indices[dim_name]
+            elif free_axis is None and var.shape[i] > 1:
+                free_axis = i
+            elif i != free_axis:
+                idx[i] = 0
+
+        if free_axis is None:
+            free_axis = 0
+            idx[0] = slice(None)
+
+        data = np.ma.array(var[tuple(idx)]).squeeze()
+        if data.ndim > 1:
+            data = data.reshape(-1)
+
+        coord_name = var.dimensions[free_axis]
+        coord = self.ds.get_coord(coord_name, group=group)
+        if coord is None or np.size(coord) != data.size:
+            coord = np.arange(data.size)
+
+        return data, np.asarray(coord), coord_name
 
     # ------------------------------------------------------------------
     # Vertical section: depth vs lat (at fixed lon) or depth vs lon (at fixed lat)
@@ -70,39 +162,39 @@ class Slicer:
         key = (var_name, "vsection", section_type, time_idx, position_idx)
         cached = self.cache.get(key)
         if cached is not None:
+            lat, lon = self.ds.get_spatial_coords(var_name)
             if section_type == "lon":
-                return cached, self.ds.lon, self.ds.depth_values
-            else:
-                return cached, self.ds.lat, self.ds.depth_values
+                return cached, lon if lon is not None else self.ds.lon, self.ds.depth_values
+            return cached, lat if lat is not None else self.ds.lat, self.ds.depth_values
 
         var = self.ds.get_variable(var_name)
-        dim_map = self.ds.get_var_dim_indices(var_name)
+        dim_map = self.ds.infer_var_axes(var_name)
+        lat, lon = self.ds.get_spatial_coords(var_name)
 
-        # Build index tuple
         idx = [slice(None)] * var.ndim
         if "time" in dim_map:
             idx[dim_map["time"]] = time_idx if time_idx is not None else 0
 
         if section_type == "lon":
-            # Fix latitude, get lon vs depth
             if "lat" in dim_map:
                 idx[dim_map["lat"]] = position_idx
-            horiz_coord = self.ds.lon
+            horiz_coord = lon if lon is not None else self.ds.lon
+            if horiz_coord is not None and np.ndim(horiz_coord) > 1:
+                horiz_coord = np.asarray(horiz_coord)[position_idx, :]
         else:
-            # Fix longitude, get lat vs depth
             if "lon" in dim_map:
                 idx[dim_map["lon"]] = position_idx
-            horiz_coord = self.ds.lat
+            horiz_coord = lat if lat is not None else self.ds.lat
+            if horiz_coord is not None and np.ndim(horiz_coord) > 1:
+                horiz_coord = np.asarray(horiz_coord)[:, position_idx]
 
         data = np.ma.array(var[tuple(idx)])
 
-        # Ensure result is 2D: (depth, horizontal)
         if data.ndim > 2:
             data = data.squeeze()
         if data.ndim == 1:
             data = data.reshape(-1, 1)
 
-        # Orient so axis 0 is depth and axis 1 is horizontal
         if "depth" in dim_map and "lat" in dim_map and "lon" in dim_map:
             depth_axis = self._remaining_axis(dim_map, section_type, time_idx)
             if depth_axis == 1:
@@ -131,12 +223,15 @@ class Slicer:
         """
         key = (var_name, "hsection", section_type, time_idx, depth_idx, position_idx)
         cached = self.cache.get(key)
+        lat, lon = self.ds.get_spatial_coords(var_name)
         if cached is not None:
-            coord = self.ds.lon if section_type == "lat" else self.ds.lat
+            coord = lon if section_type == "lat" else lat
+            if coord is not None and np.ndim(coord) > 1:
+                coord = np.asarray(coord)[position_idx, :] if section_type == "lat" else np.asarray(coord)[:, position_idx]
             return cached, coord
 
         var = self.ds.get_variable(var_name)
-        dim_map = self.ds.get_var_dim_indices(var_name)
+        dim_map = self.ds.infer_var_axes(var_name)
 
         idx = [slice(None)] * var.ndim
         if "time" in dim_map:
@@ -145,15 +240,17 @@ class Slicer:
             idx[dim_map["depth"]] = depth_idx if depth_idx is not None else 0
 
         if section_type == "lat":
-            # Fix lat, vary lon
             if "lat" in dim_map:
                 idx[dim_map["lat"]] = position_idx
-            coord = self.ds.lon
+            coord = lon
+            if coord is not None and np.ndim(coord) > 1:
+                coord = np.asarray(coord)[position_idx, :]
         else:
-            # Fix lon, vary lat
             if "lon" in dim_map:
                 idx[dim_map["lon"]] = position_idx
-            coord = self.ds.lat
+            coord = lat
+            if coord is not None and np.ndim(coord) > 1:
+                coord = np.asarray(coord)[:, position_idx]
 
         data = np.ma.array(var[tuple(idx)]).flatten()
 
@@ -180,7 +277,7 @@ class Slicer:
             return cached, self.ds.time_dates
 
         var = self.ds.get_variable(var_name)
-        dim_map = self.ds.get_var_dim_indices(var_name)
+        dim_map = self.ds.infer_var_axes(var_name)
 
         idx = [slice(None)] * var.ndim
         if "lat" in dim_map:
@@ -190,14 +287,16 @@ class Slicer:
         if "depth" in dim_map:
             idx[dim_map["depth"]] = depth_idx if depth_idx is not None else 0
 
-        # Fix any extra unassigned dimensions
-        assigned = {self.ds.time_dim, self.ds.depth_dim, self.ds.lat_dim, self.ds.lon_dim}
+        used = set(dim_map.values())
         for i, dim_name in enumerate(var.dimensions):
-            if dim_name not in assigned and idx[i] == slice(None):
-                if extra_indices and dim_name in extra_indices:
-                    idx[i] = extra_indices[dim_name]
-                else:
-                    idx[i] = 0
+            if i in used:
+                continue
+            if idx[i] != slice(None):
+                continue
+            if extra_indices and dim_name in extra_indices:
+                idx[i] = extra_indices[dim_name]
+            else:
+                idx[i] = 0
 
         data = np.ma.array(var[tuple(idx)]).flatten()
 
@@ -224,7 +323,7 @@ class Slicer:
             return cached, self.ds.depth_values
 
         var = self.ds.get_variable(var_name)
-        dim_map = self.ds.get_var_dim_indices(var_name)
+        dim_map = self.ds.infer_var_axes(var_name)
 
         idx = [slice(None)] * var.ndim
         if "time" in dim_map:
@@ -234,14 +333,16 @@ class Slicer:
         if "lon" in dim_map:
             idx[dim_map["lon"]] = lon_idx
 
-        # Fix any extra unassigned dimensions
-        assigned = {self.ds.time_dim, self.ds.depth_dim, self.ds.lat_dim, self.ds.lon_dim}
+        used = set(dim_map.values())
         for i, dim_name in enumerate(var.dimensions):
-            if dim_name not in assigned and idx[i] == slice(None):
-                if extra_indices and dim_name in extra_indices:
-                    idx[i] = extra_indices[dim_name]
-                else:
-                    idx[i] = 0
+            if i in used:
+                continue
+            if idx[i] != slice(None):
+                continue
+            if extra_indices and dim_name in extra_indices:
+                idx[i] = extra_indices[dim_name]
+            else:
+                idx[i] = 0
 
         data = np.ma.array(var[tuple(idx)]).flatten()
 
@@ -263,7 +364,7 @@ class Slicer:
         idx = [slice(None)] * var.ndim
         for dim_name, val in index_dict.items():
             if dim_name in var.dimensions:
-                axis = var.dimensions.index(dim_name)
+                axis = list(var.dimensions).index(dim_name)
                 idx[axis] = val
         return np.ma.array(var[tuple(idx)])
 
@@ -298,29 +399,36 @@ class Slicer:
     # ------------------------------------------------------------------
 
     def _extract_2d(self, var, dim_map, time_idx, depth_idx, extra_indices=None):
-        """Extract a 2D spatial slice from an N-dimensional variable."""
+        """Extract a 2D spatial slice oriented as (y/lat, x/lon)."""
         idx = [slice(None)] * var.ndim
+        spatial = {dim_map[r] for r in ("lat", "lon") if r in dim_map}
 
-        if "time" in dim_map:
-            idx[dim_map["time"]] = time_idx if time_idx is not None else 0
-        if "depth" in dim_map:
-            idx[dim_map["depth"]] = depth_idx if depth_idx is not None else 0
+        for i, dim_name in enumerate(var.dimensions):
+            if i in spatial:
+                continue
+            if "time" in dim_map and i == dim_map["time"]:
+                idx[i] = time_idx if time_idx is not None else 0
+            elif "depth" in dim_map and i == dim_map["depth"]:
+                idx[i] = depth_idx if depth_idx is not None else 0
+            elif extra_indices and dim_name in extra_indices:
+                idx[i] = extra_indices[dim_name]
+            else:
+                idx[i] = 0
 
-        # Fix any extra (unassigned) dimensions at their current slider value
-        if extra_indices:
-            assigned = {self.ds.time_dim, self.ds.depth_dim, self.ds.lat_dim, self.ds.lon_dim}
-            for i, dim_name in enumerate(var.dimensions):
-                if dim_name not in assigned and dim_name in extra_indices:
-                    idx[i] = extra_indices[dim_name]
+        data = np.ma.array(var[tuple(idx)]).squeeze()
 
-        data = np.ma.array(var[tuple(idx)])
-
-        # Squeeze out any remaining singleton dimensions
-        data = data.squeeze()
-
-        # Handle the case where squeezing reduces below 2D
         if data.ndim < 2:
             data = data.reshape(1, -1)
+            return data
+
+        while data.ndim > 2:
+            data = data[0]
+
+        # If lon precedes lat in the original dim order, squeezed data is
+        # (lon, lat) and must be transposed to (lat, lon) for pcolormesh.
+        if "lat" in dim_map and "lon" in dim_map:
+            if dim_map["lon"] < dim_map["lat"] and data.ndim == 2:
+                data = data.T
 
         return data
 
@@ -329,7 +437,6 @@ class Slicer:
         After fixing time and one spatial dim, figure out which axis
         index corresponds to depth in the reduced array.
         """
-        # Count how many dimensions precede depth that were sliced out
         axes_used = []
         if "time" in dim_map and time_idx is not None:
             axes_used.append(dim_map["time"])
@@ -339,6 +446,5 @@ class Slicer:
             axes_used.append(dim_map["lon"])
 
         depth_axis = dim_map.get("depth", 0)
-        # How many sliced axes are before depth?
         offset = sum(1 for a in axes_used if a < depth_axis)
         return depth_axis - offset

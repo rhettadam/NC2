@@ -57,12 +57,23 @@ class SliceCache:
             self._store.move_to_end(key)
             return self._store[key][0]
 
+    @staticmethod
+    def _nbytes(value):
+        """Memory footprint of a cached value (array or tuple of arrays)."""
+        if isinstance(value, tuple):
+            total = 0
+            for item in value:
+                if hasattr(item, "nbytes"):
+                    total += int(item.nbytes)
+            return total
+        return int(getattr(value, "nbytes", 0))
+
     def put(self, key, array):
         """
-        Store an array in the cache. If the key already exists, it is replaced.
-        Evicts LRU entries until the budget is satisfied.
+        Store an array (or tuple of arrays) in the cache. If the key already
+        exists, it is replaced. Evicts LRU entries until the budget is satisfied.
         """
-        nbytes = array.nbytes
+        nbytes = self._nbytes(array)
 
         # Don't cache arrays larger than the entire budget
         if nbytes > self._max_bytes:

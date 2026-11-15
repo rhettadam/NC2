@@ -19,7 +19,7 @@ from .plots.manager import PlotManager
 from .plots.config import PlotConfig
 from .plots.spatial import SpatialPlot
 from .plots.section import SectionPlot, TransectPlot
-from .plots.series import TimeseriesPlot, DepthProfilePlot
+from .plots.series import TimeseriesPlot, DepthProfilePlot, LinePlot
 from .widgets import DimensionSlider, PlaybackBar, StatsDisplay
 from .export import export_gif, export_frame
 from .constants import (
@@ -119,6 +119,7 @@ class NC2App:
         # -- Plot --
         plot_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Plot", menu=plot_menu)
+        plot_menu.add_command(label="New Plot", command=self._open_plot)
         plot_menu.add_command(label="New Spatial Plot", command=self._open_spatial)
         plot_menu.add_command(label="New Vertical Section...", command=self._open_section_dialog)
         plot_menu.add_command(label="New Horizontal Transect...", command=self._open_transect_dialog)
@@ -216,8 +217,14 @@ class NC2App:
 
         tb.Label(var_row, text="Variable:", font=("", 9, "bold")).pack(side="left")
         self._var_combo = tb.Combobox(var_row, state="readonly", width=20)
-        self._var_combo.pack(side="left", padx=(6, 8))
+        self._var_combo.pack(side="left", padx=(6, 4))
         self._var_combo.bind("<<ComboboxSelected>>", self._on_var_selected)
+
+        self._plot_btn = tb.Button(
+            var_row, text="Plot", command=self._open_plot,
+            bootstyle="success", width=6,
+        )
+        self._plot_btn.pack(side="left", padx=(0, 8))
 
         self._var_info_label = tb.Label(var_row, text="", font=("", 8))
         self._var_info_label.pack(side="left", fill="x", expand=True)
@@ -335,17 +342,25 @@ class NC2App:
         ds = self.dataset
         dims = ds.get_all_dimensions()
         num_vars = len(ds.all_variable_names)
+        n_groups = len(ds.group_paths)
 
         # File summary line
+        group_bit = f" | {n_groups} groups" if n_groups else ""
         file_line = (
             f"{ds.filename}\n"
-            f"{len(dims)} dims | {num_vars} vars | "
+            f"{len(dims)} dims | {num_vars} vars{group_bit} | "
             f"Time: {ds.num_times} | Depth: {ds.num_depths}"
         )
         self._file_info_label.config(text=file_line, foreground="")
 
         # Build detailed text
         lines = []
+        if ds.group_paths:
+            lines.append("--- Groups ---")
+            for gp in ds.group_paths:
+                lines.append(f"  /{gp}")
+            lines.append("")
+
         lines.append("--- Dimensions ---")
         for dim_name, size in dims.items():
             role = ds.get_dim_role(dim_name)
@@ -393,10 +408,10 @@ class NC2App:
         self._on_view_change()
 
     def _on_view_change(self):
-        """Rebuild the current plot with updated view settings."""
-        if self._current_var and self.slicer:
+        """Rebuild open plots with updated view settings (no-op if none open)."""
+        if self._current_var and self.slicer and self.plot_manager.count > 0:
             self.plot_manager.close_all()
-            self._open_spatial()
+            self._open_plot()
 
     # ==================================================================
     # File loading
@@ -530,17 +545,31 @@ class NC2App:
 
         self._current_var = var_name
         info = self.dataset.get_variable_info(var_name)
-        dim_map = self.dataset.get_var_dim_indices(var_name)
+        dim_map = self.dataset.infer_var_axes(var_name)
+        var = self.dataset.get_variable(var_name)
+        group = (
+            self.dataset._var_group(var_name)
+            if var_name in self.dataset._var_index
+            else self.dataset._ds
+        )
 
         self._var_info_label.config(
             text=f"{info.long_name} | {info.shape} | {info.units}"
         )
 
-        # Time slider
+        # Time slider — use this variable's inferred time axis size
         if "time" in dim_map:
-            nt = self.dataset.num_times
-            time_dates = self.dataset.time_dates
-            coord_labels = [str(t) for t in time_dates] if time_dates is not None else None
+            t_axis = dim_map["time"]
+            nt = var.shape[t_axis]
+            t_dim = var.dimensions[t_axis]
+            time_coord = self.dataset.get_coord(t_dim, group=group)
+            # Prefer CF dates when this is the global time dim
+            if t_dim == self.dataset.time_dim and self.dataset.time_dates is not None:
+                coord_labels = [str(t) for t in self.dataset.time_dates]
+            elif time_coord is not None:
+                coord_labels = [str(v) for v in time_coord]
+            else:
+                coord_labels = None
             self._time_slider.set_range(nt, coord_labels)
             self._time_idx = 0
         else:
@@ -549,21 +578,25 @@ class NC2App:
 
         # Depth slider
         if "depth" in dim_map:
-            nd = self.dataset.num_depths
-            depth_vals = self.dataset.depth_values
-            coord_labels = [f"{v:.1f}" for v in depth_vals] if depth_vals is not None else None
+            d_axis = dim_map["depth"]
+            nd = var.shape[d_axis]
+            d_dim = var.dimensions[d_axis]
+            depth_vals = self.dataset.get_coord(d_dim, group=group)
+            coord_labels = (
+                [f"{v:.1f}" for v in depth_vals] if depth_vals is not None else None
+            )
             self._depth_slider.set_range(nd, coord_labels)
             self._depth_idx = 0
         else:
             self._depth_slider.set_range(1)
             self._depth_idx = None
 
-        # Extra dimension sliders (unassigned dims)
+        # Extra dimension sliders (dims not in inferred T/Z/Y/X)
         self._setup_extra_sliders(var_name, dim_map)
 
         # Playback controller
         if "time" in dim_map:
-            nt = self.dataset.num_times
+            nt = var.shape[dim_map["time"]]
             if self.playback:
                 self.playback.pause()
             self.playback = PlaybackController(self.root, nt, self._on_playback_frame)
@@ -573,8 +606,11 @@ class NC2App:
                 self.playback.pause()
                 self.playback = None
 
-        self._update_stats()
-        self._auto_plot()
+        # Do not plot or load slice data here — that is what made startup slow.
+        # User picks a variable, then clicks Plot (ncview-style).
+        self._stats_display.clear()
+        if self.plot_manager.count > 0:
+            self.plot_manager.close_all()
 
     def _setup_extra_sliders(self, var_name, dim_map):
         """Create sliders for dimensions not assigned to time/depth/lat/lon."""
@@ -582,38 +618,35 @@ class NC2App:
         self._extra_indices = {}
 
         var = self.dataset.get_variable(var_name)
-        assigned = set(dim_map.keys())
-        # Get dim names that aren't recognized
+        group = (
+            self.dataset._var_group(var_name)
+            if var_name in self.dataset._var_index
+            else self.dataset._ds
+        )
+        used_axes = set(dim_map.values())
+
         for i, dim_name in enumerate(var.dimensions):
-            role = None
-            if dim_name == self.dataset.time_dim:
-                role = "time"
-            elif dim_name == self.dataset.depth_dim:
-                role = "depth"
-            elif dim_name == self.dataset.lat_dim:
-                role = "lat"
-            elif dim_name == self.dataset.lon_dim:
-                role = "lon"
+            if i in used_axes:
+                continue
+            size = var.shape[i]
+            if size <= 1:
+                continue
+            coord = self.dataset.get_coord(dim_name, group=group)
+            coord_labels = None
+            if coord is not None and len(coord) == size:
+                coord_labels = [f"{v}" for v in coord]
 
-            if role is None:
-                # Unassigned dimension -- create a slider
-                size = var.shape[i]
-                coord = self.dataset.get_coord(dim_name)
-                coord_labels = None
-                if coord is not None and len(coord) == size:
-                    coord_labels = [f"{v}" for v in coord]
+            self._extra_indices[dim_name] = 0
 
-                self._extra_indices[dim_name] = 0
+            def make_cb(dn):
+                return lambda idx: self._on_extra_dim_change(dn, idx)
 
-                def make_cb(dn):
-                    return lambda idx: self._on_extra_dim_change(dn, idx)
-
-                slider = DimensionSlider(
-                    self._extra_sliders_frame, dim_name, size,
-                    coord_values=coord_labels, on_change=make_cb(dim_name),
-                )
-                slider.pack(fill="x")
-                self._extra_sliders[dim_name] = slider
+            slider = DimensionSlider(
+                self._extra_sliders_frame, dim_name, size,
+                coord_values=coord_labels, on_change=make_cb(dim_name),
+            )
+            slider.pack(fill="x")
+            self._extra_sliders[dim_name] = slider
 
     def _clear_extra_sliders(self):
         for slider in self._extra_sliders.values():
@@ -622,14 +655,9 @@ class NC2App:
 
     def _on_extra_dim_change(self, dim_name, idx):
         self._extra_indices[dim_name] = idx
-        self._refresh_open_plots()
-        self._update_stats()
-
-    def _auto_plot(self):
-        if not self._current_var or self.slicer is None:
-            return
-        self.plot_manager.close_all()
-        self._open_spatial()
+        if self.plot_manager.count > 0:
+            self._refresh_open_plots()
+            self._update_stats()
 
     def _setup_playback_bar(self):
         if self._playback_bar:
@@ -644,13 +672,15 @@ class NC2App:
 
     def _on_time_change(self, idx):
         self._time_idx = idx
-        self._refresh_open_plots()
-        self._update_stats()
+        if self.plot_manager.count > 0:
+            self._refresh_open_plots()
+            self._update_stats()
 
     def _on_depth_change(self, idx):
         self._depth_idx = idx
-        self._refresh_open_plots()
-        self._update_stats()
+        if self.plot_manager.count > 0:
+            self._refresh_open_plots()
+            self._update_stats()
 
     def _on_playback_frame(self, frame_idx):
         self._time_idx = frame_idx
@@ -671,23 +701,66 @@ class NC2App:
                 pass
         return f"t={self._time_idx}"
 
+    def _open_plot(self):
+        """Route to 1D line plot or 2D spatial plot (ncview-style)."""
+        if not self._current_var or self.slicer is None:
+            return
+        var = self.dataset.get_variable(self._current_var)
+        if var.ndim <= 1:
+            self._open_line()
+        else:
+            self._open_spatial()
+
+    def _open_line(self):
+        """Plot a 1D variable as a simple line chart."""
+        if not self._current_var or self.slicer is None:
+            return
+        config = self._get_config()
+        var_name = self._current_var
+        try:
+            data, coord, coord_name = self.slicer.get_1d_series(
+                var_name, extra_indices=self._extra_indices,
+            )
+        except Exception as e:
+            messagebox.showwarning("Warning", f"Cannot create line plot:\n{e}")
+            return
+        var_info = self.dataset.get_variable_info(var_name)
+        window = LinePlot(
+            data, coord, config, var_info, coord_name=coord_name,
+            plot_id=self.plot_manager.next_id(),
+        )
+        self.plot_manager.register(window)
+        stats = self.slicer.compute_stats(data)
+        self._stats_display.update_stats(stats)
+
     def _open_spatial(self):
         if not self._current_var or self.slicer is None:
             return
 
         config = self._get_config()
         var_name = self._current_var
+        var = self.dataset.get_variable(var_name)
+        if var.ndim <= 1:
+            self._open_line()
+            return
+
         is_geo = self.dataset.has_geo_coords(var_name)
 
-        data, lat, lon = self.slicer.get_spatial_slice(
-            var_name, time_idx=self._time_idx, depth_idx=self._depth_idx,
-            extra_indices=self._extra_indices,
-        )
+        try:
+            data, lat, lon = self.slicer.get_spatial_slice(
+                var_name, time_idx=self._time_idx, depth_idx=self._depth_idx,
+                extra_indices=self._extra_indices,
+            )
+        except Exception as e:
+            messagebox.showwarning("Warning", f"Cannot create spatial plot:\n{e}")
+            return
+
         if data is None or lat is None or lon is None:
             messagebox.showwarning("Warning", "Cannot create spatial plot for this variable.")
             return
 
         var_info = self.dataset.get_variable_info(var_name)
+        y_name, x_name = self.dataset.spatial_axis_names(var_name)
         plot_id = self.plot_manager.next_id()
         time_label = self._get_time_label()
 
@@ -698,8 +771,10 @@ class NC2App:
             data, lat, lon, config, var_info,
             plot_id=plot_id, is_geo=is_geo, click_callback=on_click,
             time_label=time_label, playback=self.playback,
+            y_name=y_name, x_name=x_name,
         )
         self.plot_manager.register(window)
+        self._update_stats()
 
     def _open_section_dialog(self):
         if not self._current_var or self.slicer is None:
@@ -860,9 +935,9 @@ class NC2App:
 
     def _on_dialog_apply(self, updated_state):
         self._config_state.update(updated_state)
-        if self._current_var and self.slicer:
+        if self._current_var and self.slicer and self.plot_manager.count > 0:
             self.plot_manager.close_all()
-            self._open_spatial()
+            self._open_plot()
 
     # ==================================================================
     # Export
@@ -982,6 +1057,11 @@ class NC2App:
                     extra_indices=self._extra_indices,
                 )
                 window.update_data(data, title_suffix=time_label)
+            elif window.window_type == "line":
+                data, _, _ = self.slicer.get_1d_series(
+                    var_name, extra_indices=self._extra_indices,
+                )
+                window.update_data(data)
 
         self.plot_manager.update_all(update_fn)
 
@@ -1008,7 +1088,7 @@ class NC2App:
 
     def _show_about(self):
         messagebox.showinfo("About NC2",
-                            "NC2 v2.0.0\n\n"
+                            "NC2 v2.1.0\n\n"
                             "Fast, versatile NetCDF viewer\n"
                             "for scientists.\n\n"
                             "github.com/rhettadam/NC2")
@@ -1018,7 +1098,9 @@ class NC2App:
                             "Ctrl+O  Open file\n"
                             "Ctrl+S  Save image\n"
                             "Ctrl+Q  Quit\n\n"
-                            "Click on a spatial plot to\n"
+                            "Select a variable, then click Plot\n"
+                            "(or Plot > New Spatial Plot).\n\n"
+                            "Use Pick on a spatial plot to\n"
                             "extract a timeseries at that point.")
 
     # ==================================================================

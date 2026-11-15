@@ -10,6 +10,7 @@ import matplotlib.colors as mcolors
 
 from .manager import PlotWindow
 from .config import PlotConfig
+from .geo import apply_geo_extent
 from ..constants import get_projections, DEFAULT_PROJECTION
 
 
@@ -29,7 +30,7 @@ class SpatialPlot(PlotWindow):
 
     def __init__(self, data, lat, lon, config, var_info, plot_id=None,
                  is_geo=True, click_callback=None, time_label=None,
-                 playback=None):
+                 playback=None, y_name=None, x_name=None):
         self.config = config
         self.var_info = var_info
         self.is_geo = is_geo
@@ -38,6 +39,8 @@ class SpatialPlot(PlotWindow):
         self.lat = lat
         self.lon = lon
         self.playback = playback
+        self.y_name = y_name or "Y"
+        self.x_name = x_name or "X"
 
         self._mappable = None
         self._colorbar = None
@@ -72,6 +75,10 @@ class SpatialPlot(PlotWindow):
 
         self._ax = ax
         self._render_data(ax, data)
+        # Extent must be applied after pcolormesh so cartopy does not
+        # collapse [0,360] / [-180,180] global grids into a thin strip.
+        if self.is_geo:
+            apply_geo_extent(ax, self.lon, self.lat, extent=self.config.extent)
         self._apply_labels(ax)
 
         return fig
@@ -83,19 +90,8 @@ class SpatialPlot(PlotWindow):
         return proj_factory()
 
     def _apply_map_features(self, ax):
-        ccrs, cfeature = _get_cartopy()
-
-        if self.config.extent:
-            ax.set_extent(self.config.extent, crs=ccrs.PlateCarree())
-        else:
-            lon_min, lon_max = float(self.lon.min()), float(self.lon.max())
-            lat_min, lat_max = float(self.lat.min()), float(self.lat.max())
-            margin_lon = (lon_max - lon_min) * 0.02
-            margin_lat = (lat_max - lat_min) * 0.02
-            ax.set_extent([
-                lon_min - margin_lon, lon_max + margin_lon,
-                lat_min - margin_lat, lat_max + margin_lat,
-            ], crs=ccrs.PlateCarree())
+        """Add coastlines/land/etc. Extent is applied separately after data."""
+        _, cfeature = _get_cartopy()
 
         if self.config.coastlines:
             ax.coastlines(linewidth=0.5)
@@ -259,8 +255,8 @@ class SpatialPlot(PlotWindow):
         ax.set_title(title, fontsize=11)
 
         if not self.is_geo:
-            ax.set_xlabel(self.config.xlabel or "Longitude")
-            ax.set_ylabel(self.config.ylabel or "Latitude")
+            ax.set_xlabel(self.config.xlabel or self.x_name)
+            ax.set_ylabel(self.config.ylabel or self.y_name)
 
     def _compute_clim(self, data):
         valid = data.compressed() if hasattr(data, "compressed") else np.asarray(data).ravel()
@@ -305,6 +301,8 @@ class SpatialPlot(PlotWindow):
             if self.is_geo:
                 self._apply_map_features(self._ax)
             self._render_data(self._ax, data)
+            if self.is_geo:
+                apply_geo_extent(self._ax, self.lon, self.lat, extent=self.config.extent)
             if "title_suffix" in kwargs:
                 title = self.config.title or self.var_info.long_name
                 self._ax.set_title(f"{title} - {kwargs['title_suffix']}", fontsize=11)
@@ -328,6 +326,8 @@ class SpatialPlot(PlotWindow):
 
         self._colorbar = None
         self._render_data(self._ax, data)
+        if self.is_geo:
+            apply_geo_extent(self._ax, self.lon, self.lat, extent=self.config.extent)
         self._apply_labels(self._ax)
         self.fig.canvas.draw_idle()
 

@@ -62,4 +62,4 @@ python -m nc2 data.nc4       # alternate invocation
 
 ## License
 
-GPL-3.0. Copyright (c) 2024 Rhett R. Adam.
+GPL-3.0. Copyright (c) 2026 Rhett R. Adam.

@@ -125,6 +125,52 @@ class TimeseriesPlot(PlotWindow):
         return hasattr(sample, "year") or hasattr(sample, "timestamp")
 
 
+class LinePlot(PlotWindow):
+    """
+    Generic 1D line plot for variables that are (or squeeze to) one dimension.
+    Used when the user plots a 1D NetCDF variable (ncview XY plot path).
+    """
+
+    def __init__(self, data, coord, config, var_info, coord_name="index",
+                 plot_id=None):
+        self.config = config
+        self.var_info = var_info
+        self.coord = coord
+        self.coord_name = coord_name
+        self._line = None
+        self._ax = None
+
+        fig = self._build_figure(data)
+        super().__init__(fig, plot_id, "line")
+        plt.show(block=False)
+
+    def _build_figure(self, data):
+        fig = plt.figure(figsize=(7, 4), dpi=100)
+        fig.set_tight_layout(True)
+        self.fig = fig
+        ax = fig.add_subplot(111)
+        self._ax = ax
+
+        self._line, = ax.plot(self.coord, data, linewidth=1.2, color="steelblue")
+        title = self.config.title or f"{self.var_info.long_name} ({self.var_info.units})"
+        ax.set_title(title, fontsize=11)
+        ax.set_xlabel(self.config.xlabel or self.coord_name)
+        ax.set_ylabel(
+            self.config.ylabel
+            or f"{self.var_info.long_name} ({self.var_info.units})"
+        )
+        ax.grid(True, alpha=0.3)
+        return fig
+
+    def update_data(self, data, **kwargs):
+        if self.closed or self._line is None:
+            return
+        self._line.set_ydata(data)
+        self._ax.relim()
+        self._ax.autoscale_view(scaley=True, scalex=False)
+        self.fig.canvas.draw_idle()
+
+
 class DepthProfilePlot(PlotWindow):
     """
     Line plot of a variable's value over depth at a fixed point and time.

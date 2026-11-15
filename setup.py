@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="nc2",
-    version="2.0.0",
+    version="2.1.0",
     packages=find_packages(),
     include_package_data=True,
     package_data={"nc2": ["logo.png", "icon.ico", "icon.png"]},

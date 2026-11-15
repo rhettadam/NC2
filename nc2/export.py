@@ -12,6 +12,7 @@ import imageio.v2 as imageio
 
 from .constants import get_projections, DEFAULT_PROJECTION
 from .plots.config import PlotConfig
+from .plots.geo import apply_geo_extent
 
 
 def _get_cartopy():
@@ -177,18 +178,6 @@ def _create_figure(data, lat, lon, config, ds, var_name, time_idx, is_geo):
         proj = proj_factory()
         ax = fig.add_subplot(111, projection=proj)
 
-        if config.extent:
-            ax.set_extent(config.extent, crs=ccrs.PlateCarree())
-        else:
-            lon_min, lon_max = float(lon.min()), float(lon.max())
-            lat_min, lat_max = float(lat.min()), float(lat.max())
-            margin_lon = (lon_max - lon_min) * 0.02
-            margin_lat = (lat_max - lat_min) * 0.02
-            ax.set_extent([
-                lon_min - margin_lon, lon_max + margin_lon,
-                lat_min - margin_lat, lat_max + margin_lat,
-            ], crs=ccrs.PlateCarree())
-
         if config.coastlines:
             ax.coastlines(linewidth=0.5)
         if config.land:
@@ -229,6 +218,9 @@ def _create_figure(data, lat, lon, config, ds, var_name, time_idx, is_geo):
         kwargs["transform"] = transform
 
     mappable = ax.pcolormesh(lon, lat, data, **kwargs)
+
+    if is_geo:
+        apply_geo_extent(ax, lon, lat, extent=config.extent)
 
     fig.colorbar(
         mappable, ax=ax,
